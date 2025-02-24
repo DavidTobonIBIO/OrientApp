@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "aurha",
-    "slug": "aurha",
+    "name": "OrientApp",
+    "slug": "OrientApp",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
