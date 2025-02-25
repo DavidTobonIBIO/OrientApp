@@ -1,11 +1,10 @@
 import icons from "@/constants/icons";
-import useLocation from "@/lib/useLocation";
 import { Link } from "expo-router";
 import { Text, View, Image, ScrollView, SafeAreaView, TouchableOpacity } from "react-native";
 
 export default function Index() {
 
-  const { latitude, longitude, errorMsg } = useLocation();
+  // TOOD: start background location tracking when the app starts, and stop it when the app closes, the latitude, longitude and reverse geocoding should be stored globally so various react components can access it
 
   return (
     <SafeAreaView className="bg-white h-full">

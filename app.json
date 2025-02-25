@@ -9,7 +9,12 @@
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "OrientApp necesito acceso a tu ubicación durante su uso.",
+        "NSLocationAlwaysUsageDescription": "OrientApp necesita acceder a tu ubicación en segundo plano.",
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "OrientApp necesita acceder a tu ubicación de manera contínua."
+      }
     },
     "android": {
       "adaptiveIcon": {
