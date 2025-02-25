@@ -1,10 +1,10 @@
-import React from 'react'
+import React, { useEffect, useState } from 'react'
 import * as Location from 'expo-location'
 
 const useLocation = () => {
-  const [errorMsg, setErrorMsg] = React.useState<string | null>('');
-  const [longitude, setLongitude] = React.useState<number | null>(null);
-  const [latitude, setLatitude] = React.useState<number | null>(null);
+  const [errorMsg, setErrorMsg] = useState<string | null>('');
+  const [longitude, setLongitude] = useState<number | null>(null);
+  const [latitude, setLatitude] = useState<number | null>(null);
 
   const getUserLocation = async () => {
     let {status} = await Location.requestBackgroundPermissionsAsync();
@@ -29,7 +29,7 @@ const useLocation = () => {
     }
   };
 
-  React.useEffect(() => {
+  useEffect(() => {
     getUserLocation();
   }, []);
 
