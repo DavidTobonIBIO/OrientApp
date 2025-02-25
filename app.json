@@ -13,7 +13,7 @@
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/images/orientapp.png",
+        "foregroundImage": "./assets/images/android-chrome-192x192.png",
         "backgroundColor": "#ffffff"
       },
       "permissions": [

@@ -2,7 +2,7 @@ import React from 'react'
 import * as Location from 'expo-location'
 
 const useLocation = () => {
-  const [errorMsg, setErrorMsg] = React.useState('');
+  const [errorMsg, setErrorMsg] = React.useState<string | null>('');
   const [longitude, setLongitude] = React.useState<number | null>(null);
   const [latitude, setLatitude] = React.useState<number | null>(null);
 
