@@ -1,8 +1,12 @@
 import icons from "@/constants/icons";
+import useLocation from "@/lib/useLocation";
 import { Link } from "expo-router";
 import { Text, View, Image, ScrollView, SafeAreaView, TouchableOpacity } from "react-native";
 
 export default function Index() {
+
+  const { latitude, longitude, errorMsg } = useLocation();
+
   return (
     <SafeAreaView className="bg-white h-full">
       <ScrollView contentContainerClassName="h-full justify-center items-center">
@@ -26,6 +30,11 @@ export default function Index() {
               <Text className="text-white text-center">UserGuide</Text>
             </TouchableOpacity>
           </Link>
+          {/* <Link href="/bus-routes/1" asChild>
+            <TouchableOpacity className="bg-dark-blue p-4 rounded-md my-2 w-5/6">
+              <Text className="text-white text-center">BusRoutes</Text>
+            </TouchableOpacity>
+          </Link> */}
         </View>
       </ScrollView>
     </SafeAreaView>

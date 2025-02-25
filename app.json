@@ -15,7 +15,15 @@
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/orientapp.png",
         "backgroundColor": "#ffffff"
-      }
+      },
+      "permissions": [
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.ACCESS_BACKGROUND_LOCATION",
+        "android.permission.FOREGROUND_SERVICE",
+        "android.permission.FOREGROUND_SERVICE_LOCATION"
+      ],
+      "package": "com.davidtobonm.OrientApp"
     },
     "web": {
       "bundler": "metro",
@@ -41,10 +49,25 @@
             "./assets/fonts/SpaceMono-Regular.ttf"
           ]
         }
+      ],
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "Permite a OrientApp acceder a tu ubicación",
+          "isAndroidBackgroundLocationEnabled": true
+        }
       ]
     ],
     "experiments": {
       "typedRoutes": true
+    },
+    "extra": {
+      "router": {
+        "origin": false
+      },
+      "eas": {
+        "projectId": "89c560a1-ae50-4916-ad9d-c194dec0ca0b"
+      }
     }
   }
 }
