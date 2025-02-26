@@ -58,7 +58,9 @@
       [
         "expo-location",
         {
-          "locationAlwaysAndWhenInUsePermission": "Permite a OrientApp acceder a tu ubicación",
+          "locationAlwaysAndWhenInUsePermission": "OrientApp needs your location to provide real-time navigation assistance, even when the app is in the background.",
+          "locationAlwaysPermission": "OrientApp needs your location to provide real-time navigation assistance, even when the app is in the background.",
+          "locationWhenInUsePermission": "OrientApp uses your location to provide navigation assistance.",
           "isAndroidBackgroundLocationEnabled": true
         }
       ]
