@@ -1,6 +1,6 @@
 import React, { createContext, useState, useEffect } from 'react';
 import * as Location from 'expo-location';
-import { LOCATION_TASK_NAME, globalLocationData } from './locationTasks';
+import { globalLocationData, LOCATION_TASK_NAME } from '@/tasks/locationTasks';
 
 export interface ILocationInfo {
   latitude: number;
