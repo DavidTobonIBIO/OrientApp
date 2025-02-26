@@ -20,7 +20,7 @@ export default function Index() {
           </Link>
           <Link href="/easy-guide" asChild>
             <TouchableOpacity className="bg-dark-blue p-4 rounded-md my-2 w-5/6">
-              <Text className="text-white text-center">EasyGuide</Text>
+              <Text className="text-white text-center">Orienta Fácil</Text>
             </TouchableOpacity>
           </Link>
           <Link href="/user-guide" asChild>
