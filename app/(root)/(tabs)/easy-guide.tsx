@@ -1,25 +1,33 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, ScrollView, SafeAreaView } from 'react-native';
+import { globalLocationData } from '@/tasks/locationTasks';
 
 const API_BASE_URL = process.env.EXPO_PUBLIC_ARRIVING_BUSES_API_BASE_URL;
-let stationName = 'Universidades';
 
 const EasyGuide = () => {
   const [arrivingRoutes, setArrivingRoutes] = useState<any[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+  const [stationName, setStationName] = useState<string | null>(null);
 
   // Function to fetch station data
-  const fetchStationData = async () => {
+  const fetchNearestStationData = async () => {
     try {
-      const formattedStationName = stationName.replace(' ', '_').toLowerCase();
-      const requestEndpoint = `${API_BASE_URL}/stations/${formattedStationName}`;
+      const requestEndpoint = `${API_BASE_URL}/stations/nearest_station`;
+      const { latitude, longitude } = globalLocationData;
       console.log('Requesting data from:', requestEndpoint);
-      const response = await fetch(requestEndpoint);
+      const response = await fetch(requestEndpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ latitude, longitude }),
+      });
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
       const station = await response.json();
+      setStationName(station.name);
       setArrivingRoutes(station.arrivingRoutes);
       setError(null);
     } catch (err: any) {
@@ -30,8 +38,8 @@ const EasyGuide = () => {
   };
 
   useEffect(() => {
-    fetchStationData(); // initial request
-    const intervalId = setInterval(fetchStationData, 10000); // every 10 seconds
+    fetchNearestStationData(); // initial request
+    const intervalId = setInterval(fetchNearestStationData, 10000); // every 10 seconds
     return () => clearInterval(intervalId);
   }, []);
 
