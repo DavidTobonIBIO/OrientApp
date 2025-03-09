@@ -1,14 +1,45 @@
+import React, { useState, useEffect } from "react";
 import { View, Text, TouchableOpacity, SafeAreaView, ScrollView } from "react-native";
 import { Link } from "expo-router";
+import { globalLocationData } from "@/tasks/locationTasks";
+
+const API_BASE_URL = process.env.EXPO_PUBLIC_ARRIVING_BUSES_API_BASE_URL;
 
 export default function SelectBusRoute() {
+  const [stationName, setStationName] = useState<string | null>("Cargando...");
+
+  // Fetch nearest station name
+  const fetchNearestStationData = async () => {
+    try {
+      const requestEndpoint = `${API_BASE_URL}/stations/nearest_station`;
+      const { latitude, longitude } = globalLocationData;
+
+      const response = await fetch(requestEndpoint, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ latitude, longitude }),
+      });
+
+      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+
+      const station = await response.json();
+      setStationName(station.name);
+    } catch (err) {
+      setStationName("Estación desconocida");
+    }
+  };
+
+  useEffect(() => {
+    fetchNearestStationData(); // Fetch on mount
+  }, []);
+
   return (
     <SafeAreaView className="bg-white h-full">
       <ScrollView contentContainerClassName="h-full justify-center items-center p-5">
         {/* Title Section */}
         <View className="w-full mb-6">
-          <Text className="text-4xl font-bold">Te encuentras en:</Text>
-          <Text className="text-3xl italic text-gray-700">UNIVERSIDADES</Text>
+          <Text className="text-4xl font-bold">Origen:</Text>
+          <Text className="text-3xl italic text-gray-700">{stationName}</Text>
         </View>
 
         {/* Large Route Buttons */}
