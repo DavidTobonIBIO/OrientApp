@@ -1,41 +1,47 @@
 import React, { useEffect, useState } from "react";
-import { Text, View, Image, ScrollView, SafeAreaView, TouchableOpacity } from "react-native";
-import { Link, useRouter } from "expo-router";
+import { Text, View, Image, ScrollView, SafeAreaView, TouchableOpacity, Platform } from "react-native";
+import { Link, useRouter, Href } from "expo-router";
 import KeyEvent from "react-native-keyevent";
 import icons from "@/constants/icons";
-
-interface KeyEventType {
-  keyCode: number;
-}
 
 export default function Index() {
   const router = useRouter();
   const [selectedIndex, setSelectedIndex] = useState(0);
 
-  const buttons = [
-    { label: "Seleccionar Ruta", link: "/select-bus-route" },
-    { label: "Orienta Fácil", link: "/easy-guide" },
-    { label: "Guía de Usuario", link: "/user-guide" },
+  const buttons: { label: string; link: Href }[] = [
+    { label: "Seleccionar Ruta", link: "/select-bus-route" as const },
+    { label: "Orienta Fácil", link: "/easy-guide" as const },
+    { label: "Guía de Usuario", link: "/user-guide" as const },
   ];
 
   useEffect(() => {
-    const handleKeyDown = (keyEvent: KeyEventType) => {
-      if (keyEvent.keyCode === 25) {
-        // Volume Down - Move to the next button
-        setSelectedIndex((prevIndex) => (prevIndex + 1) % buttons.length);
-      } else if (keyEvent.keyCode === 24) {
-        // Volume Up - Move to the previous button
-        setSelectedIndex((prevIndex) => (prevIndex - 1 + buttons.length) % buttons.length);
-      } else if (keyEvent.keyCode === 66) {
-        // Enter Key - Select the current button
-        router.push(buttons[selectedIndex].link);
+    const handleKeyDown = (event: any) => {
+      if (Platform.OS === "android") {
+        if (event.keyCode === 25 || event.key === "ArrowDown") {
+          console.log("✅ Volume Up Pressed");
+          setSelectedIndex((prevIndex) => (prevIndex + 1) % buttons.length);
+        } else if (event.keyCode === 24 || event.key === "ArrowUp") {
+          console.log("✅ Volume Up Pressed");
+          setSelectedIndex((prevIndex) => (prevIndex - 1 + buttons.length) % buttons.length);
+        } else if (event.keyCode === 66 || event.key === "Enter") {
+          console.log("✅ Enter Key Pressed");
+          router.push(buttons[selectedIndex].link);
+        }
       }
     };
 
-    KeyEvent.onKeyDownListener(handleKeyDown);
+    if (Platform.OS === "android") {
+      KeyEvent.onKeyDownListener(handleKeyDown);
+    } else {
+      document.addEventListener("keydown", handleKeyDown);
+    }
 
     return () => {
-      KeyEvent.removeKeyDownListener();
+      if (Platform.OS === "android") {
+        KeyEvent.removeKeyDownListener();
+      } else {
+        document.removeEventListener("keydown", handleKeyDown);
+      }
     };
   }, [selectedIndex]);
 

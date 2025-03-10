@@ -15,6 +15,7 @@ const EasyGuide = () => {
     try {
       const requestEndpoint = `${API_BASE_URL}/stations/nearest_station`;
       const { latitude, longitude } = globalLocationData;
+
       console.log('Requesting data from:', requestEndpoint);
       const response = await fetch(requestEndpoint, {
         method: 'POST',
@@ -23,15 +24,17 @@ const EasyGuide = () => {
         },
         body: JSON.stringify({ latitude, longitude }),
       });
+
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
+
       const station = await response.json();
       setStationName(station.name);
       setArrivingRoutes(station.arrivingRoutes);
       setError(null);
     } catch (err: any) {
-      setError(err.message || 'Something went wrong');
+      setError(err.message || 'Algo salió mal');
     } finally {
       setLoading(false);
     }
@@ -44,33 +47,52 @@ const EasyGuide = () => {
   }, []);
 
   return (
-    <SafeAreaView className='bg-white h-full'>
-      <ScrollView contentContainerClassName='h-full justify-center items-center'>
-        <Text className='font-bold text-3xl my-10 font-spaceMono text-center'>
+    <SafeAreaView className="bg-white h-full">
+      <ScrollView contentContainerClassName="h-full justify-center items-center p-6">
+        
+        {/* Title */}
+        <Text className="font-bold text-5xl my-14 text-center">
           Orienta Fácil
         </Text>
-        {loading && <Text>Cargando información de la estación...</Text>}
-        {error && <Text style={{ color: 'red' }}>Error: {error}</Text>}
-        {!loading && <Text>Rutas que están llegando a {stationName}:</Text>}
+
+        {/* Loading / Error Message */}
+        {loading && (
+          <Text className="text-3xl font-bold text-gray-700">
+            Cargando información de la estación...
+          </Text>
+        )}
+        {error && (
+          <Text className="text-3xl font-bold text-red-600">
+            Error: {error}
+          </Text>
+        )}
+
+        {/* Station Information */}
         {!loading && (
-          <View style={{ width: '100%' }}>
+          <Text className="text-4xl font-bold text-gray-900 text-center my-6">
+            Rutas que están llegando a <Text className="text-blue-700">{stationName}</Text>:
+          </Text>
+        )}
+
+        {/* Arriving Routes List */}
+        {!loading && (
+          <View className="w-full">
             {arrivingRoutes.map((item, index) => (
               <View
                 key={index}
-                style={{
-                  marginBottom: 8,
-                  padding: 8,
-                  borderWidth: 1,
-                  borderColor: '#ccc',
-                  borderRadius: 4,
-                }}
+                className="my-4 p-6 border-4 border-gray-600 rounded-xl"
               >
-                <Text>{item.route}</Text>
-                <Text>Destino: {item.destination}</Text>
+                <Text className="text-3xl font-bold text-gray-900">
+                  Ruta: <Text className="text-blue-700">{item.route}</Text>
+                </Text>
+                <Text className="text-3xl text-gray-800">
+                  Destino: <Text className="text-green-700">{item.destination}</Text>
+                </Text>
               </View>
             ))}
           </View>
         )}
+
       </ScrollView>
     </SafeAreaView>
   );
