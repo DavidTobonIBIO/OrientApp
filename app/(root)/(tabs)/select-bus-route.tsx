@@ -2,13 +2,13 @@ import React, { useState, useEffect } from "react";
 import { View, Text, TouchableOpacity, SafeAreaView, ScrollView } from "react-native";
 import { Link } from "expo-router";
 import { globalLocationData } from "@/tasks/locationTasks";
-import { getAllRoutes, Route } from "@/constants/transmilenioRoutes";
+import { getAllRoutes, TransmilenioRoute } from "@/constants/transmilenioRoutes";
 
 const API_BASE_URL = process.env.EXPO_PUBLIC_ARRIVING_BUSES_API_BASE_URL;
 
 export default function SelectBusRoute() {
   const [stationName, setStationName] = useState<string | null>("Cargando...");
-  const [transmilenioRoutes, setTransmilenioRoutes] = useState<Route[]>([]);
+  const [transmilenioRoutes, setTransmilenioRoutes] = useState<TransmilenioRoute[]>([]);
 
   // Fetch nearest station name
   const fetchNearestStationData = async () => {
@@ -56,11 +56,17 @@ export default function SelectBusRoute() {
           {/* Dynamically generated route buttons */}
           <View className="w-full">
             {transmilenioRoutes.map((route) => (
-              <TouchableOpacity
-                className="w-5/6 py-6 rounded-2xl my-4 mx-auto bg-dark-blue" key={`${route.name} ${route.destination}`}
+              <Link 
+                href={`/bus_routes/${route.id}`} 
+                key={`${route.name} ${route.destination}`}
+                asChild
               >
-                <Text className="text-center text-white text-3xl font-bold">{route.name}</Text>
-              </TouchableOpacity>
+                <TouchableOpacity
+                  className="w-5/6 py-6 rounded-2xl my-4 mx-auto bg-dark-blue"
+                >
+                  <Text className="text-center text-white text-3xl font-bold">{route.name}</Text>
+                </TouchableOpacity>
+              </Link>
             ))}
           </View>
         </ScrollView>

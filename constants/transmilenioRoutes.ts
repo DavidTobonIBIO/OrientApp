@@ -2,12 +2,13 @@ import { get } from "react-native/Libraries/TurboModule/TurboModuleRegistry";
 
 const API_BASE_URL = process.env.EXPO_PUBLIC_ARRIVING_BUSES_API_BASE_URL;
 
-export class Route {
+export class TransmilenioRoute {
+    id: number = 0;
     name: string = '';
     destination: string = '';
 }
 
-export const fetchRoutes = async (): Promise<Route[]> => {
+export const fetchRoutes = async (): Promise<TransmilenioRoute[]> => {
     try {
         const response = await fetch(`${API_BASE_URL}/routes/`);
         
@@ -23,7 +24,7 @@ export const fetchRoutes = async (): Promise<Route[]> => {
     }
 };
 
-export const getAllRoutes = async (): Promise<Route[]> => {
+export const getAllRoutes = async (): Promise<TransmilenioRoute[]> => {
     const routes = await fetchRoutes();
     return routes;
 };
