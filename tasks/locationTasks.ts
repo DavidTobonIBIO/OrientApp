@@ -23,7 +23,7 @@ TaskManager.defineTask(
       if (locations && locations.length > 0) {
         const { coords } = locations[0];
         globalLocationData = { latitude: coords.latitude, longitude: coords.longitude };
-        console.log('Background location update:', globalLocationData);
+        console.log('Location update:', globalLocationData);
       }
     }
   }

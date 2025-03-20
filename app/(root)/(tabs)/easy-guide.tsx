@@ -32,6 +32,7 @@ const EasyGuide = () => {
       const station = await response.json();
       setStationName(station.name);
       setArrivingRoutes(station.arrivingRoutes);
+      console.log('Station:', station);
       setError(null);
     } catch (err: any) {
       setError(err.message || 'Algo salió mal');
@@ -83,7 +84,7 @@ const EasyGuide = () => {
                 className="my-4 p-6 border-4 border-gray-600 rounded-xl"
               >
                 <Text className="text-3xl font-bold text-gray-900">
-                  Ruta: <Text className="text-blue-700">{item.route}</Text>
+                  Ruta: <Text className="text-blue-700">{item.name}</Text>
                 </Text>
                 <Text className="text-3xl text-gray-800">
                   Destino: <Text className="text-green-700">{item.destination}</Text>
