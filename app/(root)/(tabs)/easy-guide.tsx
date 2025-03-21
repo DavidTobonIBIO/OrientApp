@@ -3,7 +3,7 @@ import { View, Text, ScrollView, SafeAreaView, TouchableOpacity } from 'react-na
 import { globalLocationData } from '@/tasks/locationTasks';
 import { Link } from 'expo-router';
 
-const API_BASE_URL = process.env.EXPO_PUBLIC_ARRIVING_BUSES_API_BASE_URL;
+const API_BASE_URL = process.env.EXPO_PUBLIC_ORIENTAPP_API_BASE_URL;
 
 const EasyGuide = () => {
   const [arrivingRoutes, setArrivingRoutes] = useState<any[]>([]);
@@ -44,7 +44,7 @@ const EasyGuide = () => {
 
   useEffect(() => {
     fetchNearestStationData(); // initial request
-    const intervalId = setInterval(fetchNearestStationData, 10000); // every 10 seconds
+    const intervalId = setInterval(fetchNearestStationData, 15000); // every 15 seconds
     return () => clearInterval(intervalId);
   }, []);
 

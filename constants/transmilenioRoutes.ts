@@ -1,6 +1,6 @@
 import { get } from "react-native/Libraries/TurboModule/TurboModuleRegistry";
 
-const API_BASE_URL = process.env.EXPO_PUBLIC_ARRIVING_BUSES_API_BASE_URL;
+const API_BASE_URL = process.env.EXPO_PUBLIC_ORIENTAPP_API_BASE_URL;
 
 export class TransmilenioRoute {
     id: number = 0;

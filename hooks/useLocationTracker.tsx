@@ -33,8 +33,8 @@ export default function useLocationTracker() {
     const watcherInstance = await Location.watchPositionAsync(
       {
         accuracy: Location.Accuracy.High,
-        timeInterval: 5000, // Updates every second
-        distanceInterval: 5, // Updates when moving 5 meters
+        timeInterval: 10000, // Updates every 10 seconds
+        distanceInterval: 10, // Updates when moving 10 meters
       },
       (position) => {
         if (!position.coords) return;

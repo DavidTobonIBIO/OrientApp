@@ -4,7 +4,7 @@ import { Link } from "expo-router";
 import { globalLocationData } from "@/tasks/locationTasks";
 import { getAllRoutes, TransmilenioRoute } from "@/constants/transmilenioRoutes";
 
-const API_BASE_URL = process.env.EXPO_PUBLIC_ARRIVING_BUSES_API_BASE_URL;
+const API_BASE_URL = process.env.EXPO_PUBLIC_ORIENTAPP_API_BASE_URL;
 
 export default function SelectBusRoute() {
   const [stationName, setStationName] = useState<string | null>("Cargando...");
@@ -48,7 +48,7 @@ export default function SelectBusRoute() {
       {/* Title Section */}
       <View className="w-full mb-6 py-5 px-5 justify-center items-center mt-10">
         <Text className="text-4xl font-bold">Origen:</Text>
-        <Text className="text-3xl italic text-gray-700">{stationName}</Text>
+        <Text className="text-3xl text-gray-700">{stationName}</Text>
       </View>
       <View className="flex-1">
         <ScrollView contentContainerClassName="justify-center items-center p-5">
@@ -57,14 +57,22 @@ export default function SelectBusRoute() {
           <View className="w-full">
             {transmilenioRoutes.map((route) => (
               <Link 
-                href={`/bus_routes/${route.id}`} 
+              href={{
+                pathname: "/bus-routes/[id]",
+                params: {
+                  id: route.id,
+                  routeName: route.name,
+                  routeDestination: route.destination,
+                  currentStation: stationName,
+                },
+              }} 
                 key={`${route.name} ${route.destination}`}
                 asChild
               >
                 <TouchableOpacity
-                  className="w-5/6 py-6 rounded-2xl my-4 mx-auto bg-dark-blue"
+                  className="w-full h-28 rounded-2xl my-4 mx-auto bg-dark-blue justify-center"
                 >
-                  <Text className="text-center text-white text-3xl font-bold">{route.name}</Text>
+                  <Text className="text-center text-white text-3xl font-bold">{route.name} {route.destination}</Text>
                 </TouchableOpacity>
               </Link>
             ))}

@@ -2,7 +2,7 @@ import React from "react";
 import { Text, View, Image, ScrollView, SafeAreaView, TouchableOpacity, Platform } from "react-native";
 import { Link, Href } from "expo-router";
 import icons from "@/constants/icons";
-const API_BASE_URL = process.env.EXPO_PUBLIC_ARRIVING_BUSES_API_BASE_URL;
+const API_BASE_URL = process.env.EXPO_PUBLIC_ORIENTAPP_API_BASE_URL;
 
 
 export default function Index() {

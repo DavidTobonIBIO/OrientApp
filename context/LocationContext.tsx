@@ -35,7 +35,7 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
     await Location.startLocationUpdatesAsync(LOCATION_TASK_NAME, {
       accuracy: Location.Accuracy.High,
-      timeInterval: 5000,
+      timeInterval: 15000,
       distanceInterval: 0,
       showsBackgroundLocationIndicator: true,
       foregroundService: {
