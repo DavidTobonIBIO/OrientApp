@@ -9,8 +9,11 @@ const GOOGLE_MAPS_ROUTES_API_URL = "https://routes.googleapis.com/directions/v2:
 const BusRoute = () => {
   const { id } = useLocalSearchParams<{ id?: string }>();
   const { routeName } = useLocalSearchParams<{ routeName?: string }>();
-  const { routeDestination } = useLocalSearchParams<{ routeDestination?: string }>();
-  const { currentStation } = useLocalSearchParams<{ currentStation?: string }>();
+  const { destinationStationLat } = useLocalSearchParams<{ destinationStationLat?: string }>();
+  const { destinationStationLng } = useLocalSearchParams<{ destinationStationLng?: string }>();
+  const { currentStationName } = useLocalSearchParams<{ currentStationName?: string }>();
+  const { currentStationLat } = useLocalSearchParams<{ currentStationLat?: string }>();
+  const { currentStationLng } = useLocalSearchParams<{ currentStationLng?: string }>();
 
   const [googleRouteData, setGoogleRouteData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -36,44 +39,57 @@ const BusRoute = () => {
     // Calculate difference in milliseconds and convert to minutes
     const diffMs = departureDate.getTime() - now.getTime();
     const diffMinutes = diffMs / (1000 * 60);
-
-    // minutes as a string rounded to two decimals
-    setTimeToDeparture(diffMinutes.toFixed(2));
-    console.log("Time to departure:", timeToDeparture);
+    // minutes as a string rounded to the nearest integer
+    const diffMinutesString = diffMinutes.toFixed(0);
+    setTimeToDeparture(diffMinutesString);
   };
 
-
-  const extractGoogleRouteData = () => {
-    if (!googleRouteData) {
-      console.log(error);
-      return;
+  const extractGoogleRouteData = (data: any) => {
+    // Check if data and routes exist
+    if (!data || !data.routes || !data.routes.length) {
+      throw new Error("No routes found in Google Maps data.");
     }
 
-    // Extract the first route from the Google Maps API response
-    for (const route of googleRouteData.routes) {
-      const routeLeg = route.legs[0];
-      const routeSteps = routeLeg.steps;
+    for (const route of data.routes) {
+      if (!route.legs || !route.legs.length) continue;
 
-      for (const step of routeSteps) {
-        if (step.travelMode === "TRANSIT") {
-          const transitDetails = step.transitDetails;
-          const transitLineName = transitDetails.transitLine.nameShort;
-          if (transitLineName === routeName) {
-            console.log("Route found:", transitDetails);
-            const departureTime = transitDetails.localizedValues.departureTime;
-            calculateTimeToDeparture(departureTime);
-            break;
+      for (const routeLeg of route.legs) {
+        if (!routeLeg.steps || !routeLeg.steps.length) continue;
+
+        const routeSteps = routeLeg.steps;
+        for (const step of routeSteps) {
+          if (step.travelMode === "TRANSIT" && step.transitDetails) {
+            const transitDetails = step.transitDetails;
+            if (!transitDetails.transitLine || !transitDetails.transitLine.nameShort) continue;
+
+            const transitLineName = transitDetails.transitLine.nameShort;
+            console.log("Transit line:", transitLineName);
+
+            if (transitLineName === routeName &&
+              transitDetails.localizedValues &&
+              transitDetails.localizedValues.departureTime &&
+              transitDetails.localizedValues.departureTime.time &&
+              transitDetails.localizedValues.departureTime.time.text) {
+
+              const departureTime = transitDetails.localizedValues.departureTime.time.text;
+              console.log("Departure time:", departureTime);
+              calculateTimeToDeparture(departureTime);
+              return;
+            }
           }
         }
       }
     }
+    throw new Error("Bus route not found in Google Maps data.");
   };
 
   // Fetch Google Maps route details using the Google Maps API
-  const fetchGoogleRouteData = async (originStation: string, destinationStation: string) => {
+  const fetchGoogleRouteData = async () => {
+    console.log(`Current station: ${currentStationName}`);
+    console.log(`Route: ${routeName}`);
+    console.log(`Requesting Google Maps route data:\nfrom (${currentStationLat}, ${currentStationLng})\nto (${destinationStationLat}, ${destinationStationLng})`);
+
     try {
-      const originAddress = `Transmilenio - Estación ${originStation}, Bogotá`;
-      const destinationAddress = `Transmilenio - Estación ${destinationStation}, Bogotá`;
       const response = await fetch(GOOGLE_MAPS_ROUTES_API_URL, {
         method: "POST",
         headers: {
@@ -82,10 +98,10 @@ const BusRoute = () => {
           "X-Goog-FieldMask": "routes.legs",
         },
         body: JSON.stringify({
-          origin: { address: originAddress },
-          destination: { address: destinationAddress },
-          travelMode: "TRANSIT",
-          computeAlternativeRoutes: true,
+          "origin": { "location": { "latLng": { "latitude": parseFloat(currentStationLat!), "longitude": parseFloat(currentStationLng!) } } },
+          "destination": { "location": { "latLng": { "latitude": parseFloat(destinationStationLat!), "longitude": parseFloat(destinationStationLng!) } } },
+          "travelMode": "TRANSIT",
+          "computeAlternativeRoutes": true,
         }),
       });
 
@@ -94,25 +110,39 @@ const BusRoute = () => {
       }
 
       const data = await response.json();
-      setGoogleRouteData(data);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Unknown error fetching Google route data.");
+      console.log("Google route data received:", data);
+      return data;
+    } catch (error) {
+      console.error("Error fetching Google route data:", error);
+      throw error;
     }
   };
 
   useEffect(() => {
     const fetchData = async () => {
       setLoading(true);
+      setError(null);
 
-      if (routeDestination && currentStation) {
-        await fetchGoogleRouteData(currentStation, routeDestination);
-      } else {
-        setError("Missing route or station data.");
+      try {
+        console.log("Fetching Google route data...");
+        const data = await fetchGoogleRouteData();
+        setGoogleRouteData(data);
+
+        if (data) {
+          extractGoogleRouteData(data);
+        } else {
+          throw new Error("Failed to retrieve route data from Google Maps API.");
+        }
+      } catch (error) {
+        console.error("Error in fetchData:", error);
+        if (error instanceof Error) {
+          setError(error.message);
+        } else {
+          setError("An unknown error occurred.");
+        }
+      } finally {
+        setLoading(false);
       }
-
-      extractGoogleRouteData();
-
-      setLoading(false);
     };
 
     fetchData();
@@ -135,10 +165,10 @@ const BusRoute = () => {
               Ruta: {routeName}
             </Text>
             <Text className="text-xl mb-2">
-              Desde: {currentStation}
+              Desde: {currentStationName}
             </Text>
-            <Text className="text-xl mb-4">
-              Hasta: {routeDestination}
+            <Text className="text-xl mb-2">
+              El bus sale en: {timeToDeparture} minutos
             </Text>
           </ScrollView>
         ) : (

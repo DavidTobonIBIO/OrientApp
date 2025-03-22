@@ -1,11 +1,9 @@
-import { get } from "react-native/Libraries/TurboModule/TurboModuleRegistry";
-
 const API_BASE_URL = process.env.EXPO_PUBLIC_ORIENTAPP_API_BASE_URL;
 
 export class TransmilenioRoute {
     id: number = 0;
     name: string = '';
-    destination: string = '';
+    destinationStationId: number = 0;
 }
 
 export const fetchRoutes = async (): Promise<TransmilenioRoute[]> => {
