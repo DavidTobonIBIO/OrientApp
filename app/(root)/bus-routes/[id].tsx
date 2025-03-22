@@ -1,6 +1,6 @@
 import { View, Text, SafeAreaView, TouchableOpacity, ScrollView } from 'react-native';
 import { useState, useEffect } from 'react';
-import { Link, useLocalSearchParams } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 
 const GOOGLE_MAPS_API_KEY = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY;
 const API_BASE_URL = process.env.EXPO_PUBLIC_ORIENTAPP_API_BASE_URL;
@@ -179,11 +179,9 @@ const BusRoute = () => {
       </View>
 
       <View className="w-full flex-row justify-center my-6 px-4">
-        <Link href="/select-bus-route" asChild>
-          <TouchableOpacity className="bg-red-800 py-4 rounded-2xl w-2/5">
+          <TouchableOpacity className="bg-red-800 py-4 rounded-2xl w-2/5" onPress={() => router.replace("/select-bus-route")}>
             <Text className="text-white text-center text-2xl font-bold">Volver</Text>
           </TouchableOpacity>
-        </Link>
       </View>
     </SafeAreaView>
   );

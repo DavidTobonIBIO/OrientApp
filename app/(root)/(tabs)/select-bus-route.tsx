@@ -1,8 +1,18 @@
 import React, { useState, useEffect } from "react";
-import { View, Text, TouchableOpacity, SafeAreaView, ScrollView } from "react-native";
-import { Link } from "expo-router";
+import {
+  View,
+  Text,
+  TouchableOpacity,
+  SafeAreaView,
+  ScrollView,
+} from "react-native";
+import { router } from "expo-router";
 import { globalLocationData } from "@/tasks/locationTasks";
-import { getAllRoutes, TransmilenioRoute } from "@/constants/transmilenioRoutes";
+import {
+  getAllRoutes,
+  TransmilenioRoute,
+  TransmilenioStation
+} from "@/constants/transmilenioRoutes";
 
 const API_BASE_URL = process.env.EXPO_PUBLIC_ORIENTAPP_API_BASE_URL;
 
@@ -10,9 +20,13 @@ export default function SelectBusRoute() {
   const [stationName, setStationName] = useState<string | null>("Cargando...");
   const [stationLat, setStationLat] = useState<number | null>(null);
   const [stationLng, setStationLng] = useState<number | null>(null);
-  const [transmilenioRoutes, setTransmilenioRoutes] = useState<TransmilenioRoute[]>([]);
+  const [transmilenioRoutes, setTransmilenioRoutes] = useState<
+    TransmilenioRoute[]
+  >([]);
   // New state to store destination station data for each route
-  const [destinationStations, setDestinationStations] = useState<{ [key: number]: any }>({});
+  const [destinationStations, setDestinationStations] = useState<{
+    [key: number]: TransmilenioStation;
+  }>({});
 
   // Fetch nearest station data
   const fetchNearestStationData = async () => {
@@ -26,7 +40,8 @@ export default function SelectBusRoute() {
         body: JSON.stringify({ latitude, longitude }),
       });
 
-      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+      if (!response.ok)
+        throw new Error(`HTTP error! status: ${response.status}`);
 
       const station = await response.json();
       setStationName(station.name);
@@ -61,7 +76,9 @@ export default function SelectBusRoute() {
       // Assume each route has a property called destinationStationId
       const destinationPromises = routes.map(async (route) => {
         // Replace 'destinationStationId' with the correct property name if different
-        const destination = await fetchDestinationStationData(route.destinationStationId);
+        const destination = await fetchDestinationStationData(
+          route.destinationStationId
+        );
         return { routeId: route.id, destination };
       });
 
@@ -69,7 +86,7 @@ export default function SelectBusRoute() {
       const destinations = await Promise.all(destinationPromises);
 
       // Create a mapping from route id to destination station
-      const destMap: { [key: number]: any } = {};
+      const destMap: { [key: number]: TransmilenioStation } = {};
       destinations.forEach(({ routeId, destination }) => {
         destMap[routeId] = destination;
       });
@@ -78,6 +95,22 @@ export default function SelectBusRoute() {
 
     fetchRoutesAndDestinations();
   }, []);
+
+  const handleNavigation = (route: TransmilenioRoute, destinationStation: TransmilenioStation) => {
+    // Use push or replace instead of Link to have more control
+    router.push({
+      pathname: "/bus-routes/[id]",
+      params: {
+        id: route.id,
+        routeName: route.name,
+        destinationStationLat: destinationStation.latitude,
+        destinationStationLng: destinationStation.longitude,
+        currentStationName: stationName,
+        currentStationLat: stationLat,
+        currentStationLng: stationLng,
+      },
+    });
+  };
 
   return (
     <SafeAreaView className="bg-white h-full">
@@ -97,35 +130,27 @@ export default function SelectBusRoute() {
               // If destination data is not yet available, show a placeholder
               if (!destinationStation) {
                 return (
-                  <View key={route.id} className="w-full h-28 rounded-2xl my-4 mx-auto bg-gray-300 justify-center items-center">
-                    <Text className="text-center text-white text-3xl font-bold">Cargando ruta...</Text>
+                  <View
+                    key={route.id}
+                    className="w-full h-28 rounded-2xl my-4 mx-auto bg-gray-300 justify-center items-center"
+                  >
+                    <Text className="text-center text-white text-3xl font-bold">
+                      Cargando ruta...
+                    </Text>
                   </View>
                 );
               }
 
               return (
-                <Link 
+                <TouchableOpacity
                   key={route.id}
-                  href={{
-                    pathname: "/bus-routes/[id]",
-                    params: {
-                      id: route.id,
-                      routeName: route.name,
-                      destinationStationLat: destinationStation.latitude,
-                      destinationStationLng: destinationStation.longitude,
-                      currentStationName: stationName,
-                      currentStationLat: stationLat,
-                      currentStationLng: stationLng,
-                    },
-                  }}
-                  asChild
+                  className="w-full h-28 rounded-2xl my-4 mx-auto bg-dark-blue justify-center"
+                  onPress={() => handleNavigation(route, destinationStation)}
                 >
-                  <TouchableOpacity className="w-full h-28 rounded-2xl my-4 mx-auto bg-dark-blue justify-center">
-                    <Text className="text-center text-white text-3xl font-bold">
-                      {route.name} {destinationStation.name}
-                    </Text>
-                  </TouchableOpacity>
-                </Link>
+                  <Text className="text-center text-white text-3xl font-bold">
+                    {route.name} {destinationStation.name}
+                  </Text>
+                </TouchableOpacity>
               );
             })}
           </View>
@@ -133,19 +158,25 @@ export default function SelectBusRoute() {
 
         {/* Navigation Buttons */}
         <View className="w-full flex-row justify-between mt-8 mb-4 px-4">
-          <Link href="/" asChild>
-            <TouchableOpacity className="bg-red-800 py-11 rounded-2xl w-2/5 mx-2">
-              <Text className="text-white text-center text-3xl font-bold">Volver</Text>
-            </TouchableOpacity>
-          </Link>
+          <TouchableOpacity className="bg-red-800 py-11 rounded-2xl w-2/5 mx-2">
+            <Text
+              className="text-white text-center text-3xl font-bold"
+              onPress={() => router.replace("/")}
+            >
+              Volver
+            </Text>
+          </TouchableOpacity>
 
           {/* Example navigation to search route */}
-          { /* TODO: implement search route funcitionality */ }
-          <Link href={{ pathname: "/(root)/(tabs)" }} asChild>
-            <TouchableOpacity className="bg-red-800 py-11 rounded-2xl w-2/5 mx-2">
-              <Text className="text-white text-center text-3xl font-bold">Buscar ruta</Text>
-            </TouchableOpacity>
-          </Link>
+          {/* TODO: implement search route funcitionality */}
+          <TouchableOpacity className="bg-red-800 py-11 rounded-2xl w-2/5 mx-2">
+            <Text
+              className="text-white text-center text-3xl font-bold"
+              onPress={() => router.replace("/")}
+            >
+              Buscar ruta
+            </Text>
+          </TouchableOpacity>
         </View>
       </View>
     </SafeAreaView>
