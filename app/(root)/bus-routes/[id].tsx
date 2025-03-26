@@ -45,7 +45,6 @@ const BusRoute = () => {
   };
 
   const extractGoogleRouteData = (data: any) => {
-    // Check if data and routes exist
     if (!data || !data.routes || !data.routes.length) {
       throw new Error("No routes found in Google Maps data.");
     }
