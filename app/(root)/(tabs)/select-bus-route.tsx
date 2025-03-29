@@ -124,8 +124,13 @@ export default function SelectBusRoute() {
                 const key = `${route.id}-${route.name}`;
                 const destinationStation = destinationStations[key];
 
-                if (!destinationStation) return null;
-
+                if (
+                  !destinationStation ||
+                  destinationStation.name.trim().toLowerCase() === stationName?.trim().toLowerCase()
+                ) {
+                  return null;
+                }
+                
                 return (
                   <TouchableOpacity
                     key={key}
