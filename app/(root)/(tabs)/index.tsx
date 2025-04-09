@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useRef } from "react";
 import {
   Text,
   View,
@@ -9,74 +9,75 @@ import {
   Alert,
 } from "react-native";
 import { Audio } from "expo-av";
+import * as FileSystem from "expo-file-system";
 import { router } from "expo-router";
-import { Href } from "expo-router";
 import icons from "@/constants/icons";
+import { globalLocationData } from "@/tasks/locationTasks";
 
 const API_BASE_URL = process.env.EXPO_PUBLIC_ORIENTAPP_API_BASE_URL;
 
-type ButtonItem = {
-  label: string;
-  link: Href;
-  isVoice?: boolean;
-};
-
 export default function Index() {
   const [recording, setRecording] = useState<Audio.Recording | null>(null);
-  const [recordingLabel, setRecordingLabel] = useState("Ruta por Voz");
-  const [isLoading, setIsLoading] = useState(false);
+  const [isRecording, setIsRecording] = useState(false);
+  const recordingRef = useRef<Audio.Recording | null>(null);
 
   const startRecording = async () => {
     try {
-      setRecordingLabel("Grabando...");
-      await Audio.requestPermissionsAsync();
+      console.log("Requesting permissions...");
+      const { granted } = await Audio.requestPermissionsAsync();
+      if (!granted) return;
+
       await Audio.setAudioModeAsync({
         allowsRecordingIOS: true,
         playsInSilentModeIOS: true,
       });
 
-      const { recording } = await Audio.Recording.createAsync(
-        Audio.RecordingOptionsPresets.HIGH_QUALITY
-      );
-      setRecording(recording);
+      console.log("Starting recording...");
+      const newRecording = new Audio.Recording();
+      await newRecording.prepareToRecordAsync(Audio.RecordingOptionsPresets.HIGH_QUALITY);
+      await newRecording.startAsync();
+      recordingRef.current = newRecording;
+      setRecording(newRecording);
+      setIsRecording(true);
 
-      // Auto-stop after 5 seconds
-      setTimeout(() => {
-        stopRecordingAndSend(recording);
-      }, 5000);
+      setTimeout(() => stopRecording(), 4000);
     } catch (err) {
-      console.error("Error starting recording:", err);
-      Alert.alert("Error", "No se pudo iniciar la grabación.");
-      setRecordingLabel("Ruta por Voz");
+      console.error("Failed to start recording:", err);
     }
   };
 
-  const stopRecordingAndSend = async (recordingInstance: Audio.Recording) => {
+  const stopRecording = async () => {
+    const rec = recordingRef.current;
+    if (!rec) return;
+
     try {
-      await recordingInstance.stopAndUnloadAsync();
-      const uri = recordingInstance.getURI();
+      await rec.stopAndUnloadAsync();
+      const uri = rec.getURI();
+      console.log("Recording stopped and stored at", uri);
+      recordingRef.current = null;
       setRecording(null);
+      setIsRecording(false);
+
       if (uri) {
-        setRecordingLabel("Procesando...");
         await sendAudioToAPI(uri);
       }
     } catch (err) {
-      console.error("Error stopping recording:", err);
-      Alert.alert("Error", "No se pudo detener la grabación.");
-      setRecordingLabel("Ruta por Voz");
+      console.error("Failed to stop recording:", err);
     }
   };
 
   const sendAudioToAPI = async (uri: string) => {
     try {
-      setIsLoading(true);
+      const fileInfo = await FileSystem.getInfoAsync(uri);
+      const fileUri = fileInfo.uri;
+  
       const formData = new FormData();
       formData.append("audio", {
-        uri,
+        uri: fileUri,
         name: "voice-input.wav",
         type: "audio/wav",
       } as any);
-
+  
       const response = await fetch(`${API_BASE_URL}/voice/route`, {
         method: "POST",
         headers: {
@@ -84,40 +85,64 @@ export default function Index() {
         },
         body: formData,
       });
-
+  
       const data = await response.json();
       console.log("API Response:", data);
-
-      if (response.ok && data.route) {
-        setRecordingLabel("Ruta por Voz");
+  
+      if (response.ok && data.routeId && data.routeName) {
+        const nearestResponse = await fetch(`${API_BASE_URL}/stations/nearest_station`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(globalLocationData),
+        });
+  
+        const nearestStation = await nearestResponse.json();
+        console.log("Nearest Station:", nearestStation);
+  
+        const matchingRoute = nearestStation.arrivingRoutes.find(
+          (r: any) => r.name.toUpperCase() === data.routeName.toUpperCase()
+        );
+  
+        if (!matchingRoute) {
+          Alert.alert("Ruta no encontrada", "Esa ruta no pasa por tu estación más cercana.");
+          return;
+        }
+  
+        const destinationResponse = await fetch(`${API_BASE_URL}/stations/${matchingRoute.destinationStationId}`);
+        const destination = await destinationResponse.json();
+  
         router.push({
-          pathname: "/select-bus-route",
-          params: { voiceRoute: data.route },
+          pathname: "/bus-routes/[id]",
+          params: {
+            id: String(matchingRoute.id),
+            routeName: matchingRoute.name,
+            destinationStationLat: destination.latitude,
+            destinationStationLng: destination.longitude,
+            currentStationName: nearestStation.name,
+            currentStationLat: nearestStation.latitude,
+            currentStationLng: nearestStation.longitude,
+          },
         });
       } else {
-        Alert.alert("Error", "No se pudo reconocer la ruta. Intenta de nuevo.");
-        setRecordingLabel("Ruta por Voz");
+        Alert.alert("Ruta no encontrada", "Intenta de nuevo por favor.");
       }
     } catch (error) {
-      console.error("Error sending audio:", error);
-      Alert.alert("Error", "Hubo un problema al enviar el audio.");
-      setRecordingLabel("Ruta por Voz");
-    } finally {
-      setIsLoading(false);
+      console.error("Error sending audio to API:", error);
+      Alert.alert("Error al procesar la grabación. Intenta nuevamente.");
     }
   };
-
-  const buttons: ButtonItem[] = [
-    { label: recordingLabel, link: "/select-bus-route" as const, isVoice: true },
-    { label: "Seleccionar Ruta", link: "/select-bus-route" as const },
-    { label: "Orienta Fácil", link: "/easy-guide" as const },
-  ];
   
+  const buttons = [
+    { label: isRecording ? "Grabando..." : "Ruta por voz", onPress: startRecording, isVoice: true },
+    { label: "Seleccionar Ruta", onPress: () => router.push("/select-bus-route") },
+    { label: "Orienta Fácil", onPress: () => router.push("/easy-guide") },
+  ];
+
   return (
     <SafeAreaView className="bg-white h-full">
-      <ScrollView contentContainerClassName="h-full justify-center items-center">
+      <ScrollView contentContainerClassName="justify-center items-center py-10">
         <Image source={icons.orientapp} className="w-5/6" resizeMode="contain" />
-        <View className="items-center w-5/6">
+        <View className="items-center w-5/6 mt-8">
           <Text className="font-bold text-5xl my-14 font-spaceMono text-center">
             Bienvenido a OrientApp!
           </Text>
@@ -125,11 +150,8 @@ export default function Index() {
           {buttons.map((button, index) => (
             <TouchableOpacity
               key={index}
-              className="p-8 rounded-2xl my-4 w-5/6 bg-dark-blue"
-              onPress={() => {
-                if (button.isVoice) startRecording();
-                else if (button.link) router.push(button.link);
-              }}
+              onPress={button.onPress}
+              className={`p-8 rounded-2xl my-4 w-5/6 ${button.isVoice ? "bg-dark-blue" : "bg-dark-blue"}`}
             >
               <Text className="text-white text-center text-3xl font-bold">
                 {button.label}

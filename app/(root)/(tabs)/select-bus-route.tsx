@@ -9,10 +9,14 @@ import {
 import { router } from "expo-router";
 import { globalLocationData } from "@/tasks/locationTasks";
 import { TransmilenioRoute, TransmilenioStation } from "@/constants/transmilenioRoutes";
+import { useLocalSearchParams, useRouter } from "expo-router";
+
 
 const API_BASE_URL = process.env.EXPO_PUBLIC_ORIENTAPP_API_BASE_URL;
 
 export default function SelectBusRoute() {
+  const { voiceRoute } = useLocalSearchParams();
+  const router = useRouter();
   const [stationName, setStationName] = useState<string | null>("Cargando...");
   const [stationLat, setStationLat] = useState<number | null>(null);
   const [stationLng, setStationLng] = useState<number | null>(null);
@@ -85,6 +89,25 @@ export default function SelectBusRoute() {
 
       console.log("Destination station map:", destMap);
       setDestinationStations(destMap);
+
+      if (voiceRoute && typeof voiceRoute === "string") {
+        const matchedRoute = transmilenioRoutes.find(
+          (r) => r.name.trim().toLowerCase() === voiceRoute.trim().toLowerCase()
+        );
+      
+        if (matchedRoute) {
+          const key = `${matchedRoute.id}-${matchedRoute.name}`;
+          const destinationStation = destMap[key];
+
+          console.log("Voice route param:", voiceRoute);
+          console.log("Available route names:", transmilenioRoutes.map(r => r.name));
+
+      
+          if (destinationStation) {
+            handleNavigation(matchedRoute, destinationStation);
+          }
+        }
+      }
     };
 
     fetchDestinations();
@@ -157,7 +180,7 @@ export default function SelectBusRoute() {
               className="text-white text-center text-3xl font-bold"
               onPress={() => router.replace("/")}
             >
-              Volver
+              Buscar ruta
             </Text>
           </TouchableOpacity>
 
@@ -166,7 +189,7 @@ export default function SelectBusRoute() {
               className="text-white text-center text-3xl font-bold"
               onPress={() => router.replace("/")}
             >
-              Buscar ruta
+              Volver
             </Text>
           </TouchableOpacity>
         </View>
