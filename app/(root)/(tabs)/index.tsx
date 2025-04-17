@@ -1,4 +1,4 @@
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import {
   Text,
   View,
@@ -7,19 +7,61 @@ import {
   SafeAreaView,
   TouchableOpacity,
   Alert,
+  ActivityIndicator,
 } from "react-native";
 import { Audio } from "expo-av";
 import * as FileSystem from "expo-file-system";
 import { router } from "expo-router";
 import icons from "@/constants/icons";
-import { globalLocationData } from "@/tasks/locationTasks";
+import { globalLocationData, globalStationData, addStationDataListener } from "@/tasks/locationTasks";
+import 'nativewind';
 
 const API_BASE_URL = process.env.EXPO_PUBLIC_ORIENTAPP_API_BASE_URL;
 
 export default function Index() {
   const [recording, setRecording] = useState<Audio.Recording | null>(null);
   const [isRecording, setIsRecording] = useState(false);
+  const [currentStation, setCurrentStation] = useState<string | null>(null);
+  const [locationAvailable, setLocationAvailable] = useState<boolean>(false);
+  const [stationLoading, setStationLoading] = useState<boolean>(true);
   const recordingRef = useRef<Audio.Recording | null>(null);
+
+  // Update component state with global station data
+  const updateFromGlobalData = () => {
+    try {
+      const { station } = globalStationData;
+      const { latitude, longitude } = globalLocationData;
+      
+      // Check if location data is available
+      setLocationAvailable(latitude !== 0 || longitude !== 0);
+      
+      if (station) {
+        setCurrentStation(station.name);
+        setStationLoading(false);
+      } else {
+        setCurrentStation(null);
+        setStationLoading(locationAvailable);
+      }
+    } catch (err) {
+      console.error('Error updating station data:', err);
+      setCurrentStation(null);
+      setStationLoading(false);
+    }
+  };
+
+  // Subscribe to global station data updates
+  useEffect(() => {
+    // Initial update from global data
+    updateFromGlobalData();
+    
+    // Register listener for updates
+    const removeListener = addStationDataListener(updateFromGlobalData);
+    
+    // Cleanup listener on unmount
+    return () => {
+      removeListener();
+    };
+  }, []);
 
   const startRecording = async () => {
     try {
@@ -142,10 +184,39 @@ export default function Index() {
     <SafeAreaView className="bg-white h-full">
       <ScrollView contentContainerClassName="justify-center items-center py-10">
         <Image source={icons.orientapp} className="w-5/6" resizeMode="contain" />
-        <View className="items-center w-5/6 mt-8">
-          <Text className="font-bold text-5xl my-14 font-spaceMono text-center">
+        <View className="items-center w-5/6">
+          <Text className="font-bold text-5xl font-spaceMono text-center mb-8 mt-2">
             Bienvenido a OrientApp!
           </Text>
+
+          {/* Current Station Info */}
+          <View className="w-full bg-gray-100 rounded-xl p-5 mb-8">
+            {!locationAvailable ? (
+              <Text className="text-red-600 text-xl text-center font-bold">
+                Servicio de ubicación no disponibles
+              </Text>
+            ) : stationLoading ? (
+              <View className="items-center">
+                <ActivityIndicator size="large" color="#242E47" />
+                <Text className="text-gray-600 text-xl text-center mt-2">
+                  Buscando estación más cercana...
+                </Text>
+              </View>
+            ) : currentStation ? (
+              <View>
+                <Text className="text-gray-700 text-xl text-center">
+                  Estación más cercana:
+                </Text>
+                <Text className="text-dark-blue text-4xl font-bold text-center mt-1">
+                  {currentStation}
+                </Text>
+              </View>
+            ) : (
+              <Text className="text-orange-600 text-xl text-center">
+                No se encontró ninguna estación cercana
+              </Text>
+            )}
+          </View>
 
           {buttons.map((button, index) => (
             <TouchableOpacity

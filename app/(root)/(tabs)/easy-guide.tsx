@@ -1,40 +1,80 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, ScrollView, SafeAreaView, TouchableOpacity } from 'react-native';
-import { globalLocationData } from '@/tasks/locationTasks';
 import { router } from 'expo-router';
+import { Route, Station } from '@/context/AppContext';
+import { globalStationData, addStationDataListener } from '@/tasks/locationTasks';
+import 'nativewind';
 
-const API_BASE_URL = process.env.EXPO_PUBLIC_ORIENTAPP_API_BASE_URL;
+const API_BASE_URL = process.env.EXPO_PUBLIC_ORIENTAPP_API_BASE_URL || 'http://localhost:8000/api';
+
+interface DestinationMap {
+  [routeId: number]: string;
+}
 
 const EasyGuide = () => {
-  const [arrivingRoutes, setArrivingRoutes] = useState<any[]>([]);
+  const [arrivingRoutes, setArrivingRoutes] = useState<Route[]>([]);
+  const [destinationNames, setDestinationNames] = useState<DestinationMap>({});
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [stationName, setStationName] = useState<string | null>(null);
 
-  // Function to fetch station data
-  const fetchNearestStationData = async () => {
+  // Function to fetch station by ID
+  const fetchStationById = async (stationId: number): Promise<Station> => {
+    const response = await fetch(`${API_BASE_URL}/stations/${stationId}`);
+    if (!response.ok) {
+      throw new Error(`Error fetching station with ID: ${stationId}`);
+    }
+    return await response.json();
+  };
+
+  // Function to fetch destination stations for all routes
+  const fetchDestinationStations = async (routes: Route[]) => {
     try {
-      const requestEndpoint = `${API_BASE_URL}/stations/nearest_station`;
-      const { latitude, longitude } = globalLocationData;
-
-      console.log('Requesting data from:', requestEndpoint);
-      const response = await fetch(requestEndpoint, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ latitude, longitude }),
+      const destinations: DestinationMap = {};
+      
+      // Create an array of promises for fetching all destination stations
+      const promises = routes.map(async (route) => {
+        try {
+          if (route.destinationStationId) {
+            const station = await fetchStationById(route.destinationStationId);
+            destinations[route.id] = station.name;
+          }
+        } catch (err) {
+          console.error(`Failed to fetch destination for route ${route.id}:`, err);
+        }
       });
+      
+      // Wait for all requests to complete
+      await Promise.all(promises);
+      
+      // Update state with all destination names
+      setDestinationNames(destinations);
+    } catch (err) {
+      console.error('Error fetching destination stations:', err);
+    }
+  };
 
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      const station = await response.json();
-      setStationName(station.name);
-      setArrivingRoutes(station.arrivingRoutes);
-      console.log('Station:', station);
+  // Update component state with global station data
+  const updateFromGlobalData = () => {
+    try {
+      setLoading(true);
       setError(null);
+      
+      const { station, arrivingRoutes: routes } = globalStationData;
+      
+      if (station) {
+        setStationName(station.name);
+        setArrivingRoutes(routes);
+        
+        // Fetch destination station names for all routes
+        if (routes && routes.length > 0) {
+          fetchDestinationStations(routes);
+        }
+        
+        setError(null);
+      } else {
+        setError('No se encontró ninguna estación cercana');
+      }
     } catch (err: any) {
       setError(err.message || 'Algo salió mal');
     } finally {
@@ -42,10 +82,18 @@ const EasyGuide = () => {
     }
   };
 
+  // Subscribe to global station data updates
   useEffect(() => {
-    fetchNearestStationData(); // initial request
-    const intervalId = setInterval(fetchNearestStationData, 15000); // every 15 seconds
-    return () => clearInterval(intervalId);
+    // Initial update from global data
+    updateFromGlobalData();
+    
+    // Register listener for updates
+    const removeListener = addStationDataListener(updateFromGlobalData);
+    
+    // Cleanup listener on unmount
+    return () => {
+      removeListener();
+    };
   }, []);
 
   return (
@@ -99,7 +147,7 @@ const EasyGuide = () => {
                     Ruta: <Text className="text-blue-700">{item.name}</Text>
                   </Text>
                   <Text className="text-3xl text-gray-800">
-                    Destino: <Text className="text-green-700">{item.destination}</Text>
+                    Destino: <Text className="text-green-700">{destinationNames[item.id] || 'Cargando...'}</Text>
                   </Text>
                 </View>
               ))}
