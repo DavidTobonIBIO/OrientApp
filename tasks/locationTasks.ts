@@ -166,7 +166,7 @@ const notifyListeners = () => {
 /**
  * Start regular station data fetching
  */
-export const startStationFetching = (intervalMs = 15000): void => {
+export const startStationFetching = (intervalMs = 20000): void => {
   if (stationFetchInterval) {
     clearInterval(stationFetchInterval);
   }

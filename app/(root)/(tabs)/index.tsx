@@ -185,15 +185,17 @@ export default function Index() {
       <ScrollView contentContainerClassName="justify-center items-center py-10">
         <Image source={icons.orientapp} className="w-5/6" resizeMode="contain" />
         <View className="items-center w-5/6">
+          {/* 
           <Text className="font-bold text-5xl font-spaceMono text-center mb-8 mt-2">
             Bienvenido a OrientApp!
           </Text>
+          */}
 
           {/* Current Station Info */}
           <View className="w-full bg-gray-100 rounded-xl p-5 mb-8">
             {!locationAvailable ? (
-              <Text className="text-red-600 text-xl text-center font-bold">
-                Servicio de ubicación no disponibles
+              <Text className="text-red-600 text-2xl text-center font-bold">
+                Esperando acceso a ubicación...
               </Text>
             ) : stationLoading ? (
               <View className="items-center">
