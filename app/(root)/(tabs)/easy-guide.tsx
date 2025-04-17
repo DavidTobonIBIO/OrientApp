@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, ScrollView, SafeAreaView, TouchableOpacity } from 'react-native';
 import { router } from 'expo-router';
-import { Route, Station } from '@/context/AppContext';
-import { globalStationData, addStationDataListener } from '@/tasks/locationTasks';
+import { BusRoute, Station } from '@/context/AppContext';
+import { globalCurrentStationData, addStationDataListener } from '@/tasks/locationTasks';
 import 'nativewind';
 
 const API_BASE_URL = process.env.EXPO_PUBLIC_ORIENTAPP_API_BASE_URL || 'http://localhost:8000/api';
@@ -12,7 +12,7 @@ interface DestinationMap {
 }
 
 const EasyGuide = () => {
-  const [arrivingRoutes, setArrivingRoutes] = useState<Route[]>([]);
+  const [arrivingRoutes, setArrivingRoutes] = useState<BusRoute[]>([]);
   const [destinationNames, setDestinationNames] = useState<DestinationMap>({});
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
@@ -28,7 +28,7 @@ const EasyGuide = () => {
   };
 
   // Function to fetch destination stations for all routes
-  const fetchDestinationStations = async (routes: Route[]) => {
+  const fetchDestinationStations = async (routes: BusRoute[]) => {
     try {
       const destinations: DestinationMap = {};
       
@@ -60,7 +60,7 @@ const EasyGuide = () => {
       setLoading(true);
       setError(null);
       
-      const { station, arrivingRoutes: routes } = globalStationData;
+      const { station, arrivingRoutes: routes } = globalCurrentStationData;
       
       if (station) {
         setStationName(station.name);

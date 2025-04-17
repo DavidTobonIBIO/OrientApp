@@ -44,7 +44,7 @@ const BusRoute = () => {
         }
       }
     }
-    throw new Error("Ruta de bus no encontrada en los datos de Google Maps.");
+    throw new Error(`Informacion de la ruta ${routeName} (con id ${id}) para la estacion ${currentStationName} no encontrada en los datos de Google Maps.`);
   };
 
   const fetchGoogleRouteData = async () => {

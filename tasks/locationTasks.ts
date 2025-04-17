@@ -1,6 +1,6 @@
 import * as Location from 'expo-location';
 import { Platform } from 'react-native';
-import { Station, Route } from '@/context/AppContext';
+import { Station, BusRoute } from '@/context/AppContext';
 
 const API_BASE_URL = process.env.EXPO_PUBLIC_ORIENTAPP_API_BASE_URL || 'http://localhost:8000/api';
 
@@ -12,7 +12,7 @@ export interface LocationData {
 
 export interface StationData {
   station: Station | null;
-  arrivingRoutes: Route[];
+  arrivingRoutes: BusRoute[];
   lastUpdated: Date | null;
 }
 
@@ -22,7 +22,7 @@ export const globalLocationData: LocationData = {
   longitude: 0,
 };
 
-export const globalStationData: StationData = {
+export const globalCurrentStationData: StationData = {
   station: null,
   arrivingRoutes: [],
   lastUpdated: null,
@@ -137,9 +137,9 @@ export const fetchNearestStation = async (): Promise<void> => {
     const station: Station = await response.json();
     
     // Update global state
-    globalStationData.station = station;
-    globalStationData.arrivingRoutes = station.arrivingRoutes || [];
-    globalStationData.lastUpdated = new Date();
+    globalCurrentStationData.station = station;
+    globalCurrentStationData.arrivingRoutes = station.arrivingRoutes || [];
+    globalCurrentStationData.lastUpdated = new Date();
     
     // Notify any registered listeners (if we implement that later)
     notifyListeners();

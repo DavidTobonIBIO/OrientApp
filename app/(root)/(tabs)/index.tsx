@@ -9,13 +9,15 @@ import {
   Alert,
   ActivityIndicator,
   StatusBar,
+  Platform,
 } from "react-native";
 import { Audio } from "expo-av";
 import * as FileSystem from "expo-file-system";
 import { router } from "expo-router";
 import icons from "@/constants/icons";
-import { globalLocationData, globalStationData, addStationDataListener } from "@/tasks/locationTasks";
+import { globalLocationData, globalCurrentStationData, addStationDataListener } from "@/tasks/locationTasks";
 import 'nativewind';
+import { BusRoute, Station, fetchStationById } from "@/context/AppContext";
 
 const API_BASE_URL = process.env.EXPO_PUBLIC_ORIENTAPP_API_BASE_URL;
 
@@ -26,11 +28,13 @@ export default function Index() {
   const [locationAvailable, setLocationAvailable] = useState<boolean>(false);
   const [stationLoading, setStationLoading] = useState<boolean>(true);
   const recordingRef = useRef<Audio.Recording | null>(null);
+  const [detectedRoutes, setDetectedRoutes] = useState<BusRoute[]>([]);
+  const [showRouteSelection, setShowRouteSelection] = useState<boolean>(false);
 
   // Update component state with global station data
   const updateFromGlobalData = () => {
     try {
-      const { station } = globalStationData;
+      const { station } = globalCurrentStationData;
       const { latitude, longitude } = globalLocationData;
       
       // Check if location data is available
@@ -66,112 +70,184 @@ export default function Index() {
 
   const startRecording = async () => {
     try {
-      console.log("Requesting permissions...");
-      const { granted } = await Audio.requestPermissionsAsync();
-      if (!granted) return;
+      // Request permissions
+      const { status } = await Audio.requestPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permiso requerido', 'Necesitamos acceso al micrófono para grabar audio.');
+        return;
+      }
 
+      // Prepare recording
       await Audio.setAudioModeAsync({
         allowsRecordingIOS: true,
         playsInSilentModeIOS: true,
       });
 
-      console.log("Starting recording...");
-      const newRecording = new Audio.Recording();
-      await newRecording.prepareToRecordAsync(Audio.RecordingOptionsPresets.HIGH_QUALITY);
-      await newRecording.startAsync();
-      recordingRef.current = newRecording;
-      setRecording(newRecording);
+      // Start recording
+      const newRecording = await Audio.Recording.createAsync(
+        Audio.RecordingOptionsPresets.HIGH_QUALITY
+      );
+      
+      recordingRef.current = newRecording.recording;
+      setRecording(newRecording.recording);
       setIsRecording(true);
 
-      setTimeout(() => stopRecording(), 4000);
+      // Automatically stop recording after 5 seconds
+      setTimeout(() => {
+        if (recordingRef.current) {
+          stopRecording();
+        }
+      }, 5000);
     } catch (err) {
-      console.error("Failed to start recording:", err);
+      console.error('Failed to start recording', err);
+      Alert.alert('Error', 'No se pudo iniciar la grabación');
     }
   };
 
   const stopRecording = async () => {
-    const rec = recordingRef.current;
-    if (!rec) return;
-
     try {
-      await rec.stopAndUnloadAsync();
-      const uri = rec.getURI();
-      console.log("Recording stopped and stored at", uri);
+      if (!recordingRef.current) return;
+      
+      // Stop recording
+      await recordingRef.current.stopAndUnloadAsync();
+      setIsRecording(false);
+      
+      // Get recording URI
+      const uri = recordingRef.current.getURI();
+      if (!uri) {
+        throw new Error('No recording URI available');
+      }
+      
+      // Send audio to API
+      await sendAudioToAPI(uri);
+      
+      // Reset recording state
       recordingRef.current = null;
       setRecording(null);
-      setIsRecording(false);
-
-      if (uri) {
-        await sendAudioToAPI(uri);
-      }
     } catch (err) {
-      console.error("Failed to stop recording:", err);
+      console.error('Failed to stop recording', err);
+      Alert.alert('Error', 'No se pudo detener la grabación');
+      setIsRecording(false);
     }
+  };
+
+  // Function to handle route selection
+  const handleRouteSelection = async (route: BusRoute) => {
+    try {
+      setStationLoading(true);
+      const destinationStation: Station = await fetchStationById(route.destinationStationId);
+      
+      router.push({
+        pathname: "/bus-routes/[id]",
+        params: {
+          id: route.id,
+          routeName: route.name,
+          destinationStationLat: destinationStation.coordinates.latitude,
+          destinationStationLng: destinationStation.coordinates.longitude,
+          currentStationName: globalCurrentStationData.station?.name,
+          currentStationLat: globalCurrentStationData.station?.coordinates.latitude,
+          currentStationLng: globalCurrentStationData.station?.coordinates.longitude,
+        },
+      });
+    } catch (err) {
+      console.error('Error handling route selection:', err);
+      Alert.alert('Error', 'No se pudo cargar la información de la ruta.');
+    } finally {
+      setStationLoading(false);
+    }
+  };
+
+  // Function to cancel route selection
+  const cancelRouteSelection = () => {
+    setShowRouteSelection(false);
+    setDetectedRoutes([]);
   };
 
   const sendAudioToAPI = async (uri: string) => {
     try {
+      // Show loading state
+      setStationLoading(true);
+      
+      // Check file extension and type
+      const fileExtension = uri.split('.').pop()?.toLowerCase();
+      const mimeType = fileExtension === 'm4a' ? 'audio/m4a' : 'audio/wav';
+      const fileName = `recording.${fileExtension}`;
+      
+      console.log('File type:', mimeType, 'File name:', fileName);
+      
+      // Read the file as base64
       const fileInfo = await FileSystem.getInfoAsync(uri);
-      const fileUri = fileInfo.uri;
-  
-      const formData = new FormData();
-      formData.append("audio", {
-        uri: fileUri,
-        name: "voice-input.wav",
-        type: "audio/wav",
-      } as any);
-  
-      const response = await fetch(`${API_BASE_URL}/voice/route`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "multipart/form-data",
-        },
-        body: formData,
-      });
-  
-      const data = await response.json();
-      console.log("API Response:", data);
-  
-      if (response.ok && data.routeId && data.routeName) {
-        const nearestResponse = await fetch(`${API_BASE_URL}/stations/nearest_station`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(globalLocationData),
-        });
-  
-        const nearestStation = await nearestResponse.json();
-        console.log("Nearest Station:", nearestStation);
-  
-        const matchingRoute = nearestStation.arrivingRoutes.find(
-          (r: any) => r.name.toUpperCase() === data.routeName.toUpperCase()
-        );
-  
-        if (!matchingRoute) {
-          Alert.alert("Ruta no encontrada", "Esa ruta no pasa por tu estación más cercana.");
-          return;
-        }
-  
-        const destinationResponse = await fetch(`${API_BASE_URL}/stations/${matchingRoute.destinationStationId}`);
-        const destination = await destinationResponse.json();
-  
-        router.push({
-          pathname: "/bus-routes/[id]",
-          params: {
-            id: String(matchingRoute.id),
-            routeName: matchingRoute.name,
-            destinationStationLat: destination.latitude,
-            destinationStationLng: destination.longitude,
-            currentStationName: nearestStation.name,
-            currentStationLat: nearestStation.latitude,
-            currentStationLng: nearestStation.longitude,
-          },
-        });
-      } else {
-        Alert.alert("Ruta no encontrada", "Intenta de nuevo por favor.");
+      if (!fileInfo.exists) {
+        throw new Error('Recording file not found');
       }
-    } catch (error) {
-      console.error("Error sending audio to API:", error);
-      Alert.alert("Error al procesar la grabación. Intenta nuevamente.");
+      
+      // Create form data
+      const formData = new FormData();
+      formData.append('audio', {
+        uri: uri,
+        name: fileName,
+        type: mimeType,
+      } as any);
+      
+      // Make API request
+      console.log('Sending request to API...');
+      const response = await fetch(`${API_BASE_URL}/voice/route`, {
+        method: 'POST',
+        body: formData,
+        headers: {
+          'Accept': 'application/json',
+        },
+      }).catch(e => {
+        console.log('Fetch error:', e);
+        throw new Error('Error de conexión: ' + e.message);
+      });
+      
+      console.log('Response status:', response.status);
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.log('API error response:', errorText);
+        throw new Error(`Error en la solicitud: ${response.status}`);
+      }
+      
+      const routes: BusRoute[] = await response.json();
+      console.log('Routes found:', routes);
+      
+      // If routes were found, navigate to route details or show confirmation
+      if (routes) {
+        if (routes.length === 1) {
+          // If only one route, navigate directly to route screen
+          const route = routes[0];
+          
+          const destinationStation: Station = await fetchStationById(route.destinationStationId);
+
+          // Navigate to route details screen with params
+          router.push({
+            pathname: "/bus-routes/[id]",
+            params: {
+              id: route.id,
+              routeName: route.name,
+              destinationStationLat: destinationStation.coordinates.latitude,
+              destinationStationLng: destinationStation.coordinates.longitude,
+              currentStationName: globalCurrentStationData.station?.name,
+              currentStationLat: globalCurrentStationData.station?.coordinates.latitude,
+              currentStationLng: globalCurrentStationData.station?.coordinates.longitude,
+            },
+          });
+        } else {
+          // If multiple routes, show selection UI
+          console.log("Waiting for user selection");
+          setDetectedRoutes(routes);
+          setShowRouteSelection(true);
+        }
+      } else {
+        Alert.alert('No se encontró la ruta', 'Intente nuevamente pronunciando claramente el número de ruta.');
+      }
+    } catch (err: any) {
+      console.log('Error sending audio to API:', err);
+      Alert.alert('No se encontró la ruta', 'Intente nuevamente pronunciando claramente el número de ruta.');
+    } finally {
+      setStationLoading(false);
     }
   };
   
@@ -181,12 +257,50 @@ export default function Index() {
     { label: "Orienta Fácil", onPress: () => router.push("/easy-guide") },
   ];
 
+  // Render route selection UI if needed
+  if (showRouteSelection) {
+    return (
+      <SafeAreaView className="bg-white h-full">
+        <StatusBar barStyle="dark-content" backgroundColor="white" />
+        
+        <View className="p-6">
+          <Text className="text-3xl font-bold text-center mb-8">
+            Seleccione una ruta
+          </Text>
+          
+          <ScrollView className="mb-6">
+            {detectedRoutes.map((route) => (
+              <TouchableOpacity
+                key={route.id}
+                onPress={() => handleRouteSelection(route)}
+                className="p-6 bg-dark-blue rounded-xl my-3"
+              >
+                <Text className="text-white text-2xl font-bold text-center">
+                  {route.name}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+          
+          <TouchableOpacity
+            onPress={cancelRouteSelection}
+            className="p-6 bg-red-600 rounded-xl mt-4"
+          >
+            <Text className="text-white text-2xl font-bold text-center">
+              Cancelar
+            </Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
   return (
     <SafeAreaView className="bg-white h-full">
       {/* Set status bar to dark content for visibility on white background */}
       <StatusBar barStyle="dark-content" backgroundColor="white" />
       
-      <ScrollView contentContainerClassName="justify-center items-center py-10">
+      <ScrollView contentContainerClassName="justify-center items-center">
         <Image source={icons.orientapp} className="w-5/6" resizeMode="contain" />
         <View className="items-center w-5/6">
           {/* 

@@ -8,8 +8,8 @@ import {
 } from "react-native";
 import { router } from "expo-router";
 import { globalLocationData } from "@/tasks/locationTasks";
-import { TransmilenioRoute, TransmilenioStation } from "@/constants/transmilenioRoutes";
 import { useLocalSearchParams, useRouter } from "expo-router";
+import { BusRoute, Station } from "@/context/AppContext";
 
 
 const API_BASE_URL = process.env.EXPO_PUBLIC_ORIENTAPP_API_BASE_URL;
@@ -20,9 +20,9 @@ export default function SelectBusRoute() {
   const [stationName, setStationName] = useState<string | null>("Cargando...");
   const [stationLat, setStationLat] = useState<number | null>(null);
   const [stationLng, setStationLng] = useState<number | null>(null);
-  const [transmilenioRoutes, setTransmilenioRoutes] = useState<TransmilenioRoute[]>([]);
+  const [transmilenioRoutes, setTransmilenioRoutes] = useState<BusRoute[]>([]);
   const [destinationStations, setDestinationStations] = useState<{
-    [key: string]: TransmilenioStation;
+    [key: string]: Station;
   }>({});
 
   const fetchNearestStationData = async () => {
@@ -38,12 +38,12 @@ export default function SelectBusRoute() {
 
       if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
 
-      const station = await response.json();
+      const station: Station = await response.json();
       console.log("Nearest Station:", station);
 
       setStationName(station.name);
-      setStationLat(station.latitude);
-      setStationLng(station.longitude);
+      setStationLat(station.coordinates.latitude);
+      setStationLng(station.coordinates.longitude);
       setTransmilenioRoutes(station.arrivingRoutes || []);
     } catch (err) {
       console.error("Failed to fetch nearest station:", err);
@@ -79,15 +79,15 @@ export default function SelectBusRoute() {
         });
 
       const destinations = (await Promise.all(destinationPromises)).filter(
-        (d): d is { routeId: string; destination: TransmilenioStation } => d !== null
+        (d): d is { routeId: string; destination: Station } => d !== null
       );
 
-      const destMap: { [key: string]: TransmilenioStation } = {};
+      const destMap: { [key: string]: Station } = {};
       destinations.forEach(({ routeId, destination }) => {
         destMap[routeId] = destination;
       });
 
-      console.log("Destination station map:", destMap);
+      // console.log("Destination station map:", destMap);
       setDestinationStations(destMap);
 
       if (voiceRoute && typeof voiceRoute === "string") {
@@ -113,14 +113,14 @@ export default function SelectBusRoute() {
     fetchDestinations();
   }, [transmilenioRoutes]);
 
-  const handleNavigation = (route: TransmilenioRoute, destinationStation: TransmilenioStation) => {
+  const handleNavigation = (route: BusRoute, destinationStation: Station) => {
     router.push({
       pathname: "/bus-routes/[id]",
       params: {
         id: route.id,
         routeName: route.name,
-        destinationStationLat: destinationStation.latitude,
-        destinationStationLng: destinationStation.longitude,
+        destinationStationLat: destinationStation.coordinates.latitude,
+        destinationStationLng: destinationStation.coordinates.longitude,
         currentStationName: stationName,
         currentStationLat: stationLat,
         currentStationLng: stationLng,

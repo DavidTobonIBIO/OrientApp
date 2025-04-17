@@ -2,7 +2,7 @@ import React, { createContext, useContext, useState, useEffect, useCallback, Rea
 import { Alert } from 'react-native';
 import { 
   globalLocationData, 
-  globalStationData, 
+  globalCurrentStationData, 
   initializeBackgroundTasks,
   addStationDataListener,
   fetchNearestStation
@@ -10,6 +10,24 @@ import {
 
 // API URL
 const API_BASE_URL = process.env.EXPO_PUBLIC_ORIENTAPP_API_BASE_URL || 'http://localhost:8000/api';
+
+/**
+ * Fetch station by ID
+ */
+export const fetchStationById = async (stationId: number): Promise<Station> => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/stations/${stationId}`);
+    
+    if (!response.ok) {
+      throw new Error(`Error fetching station with ID: ${stationId}`);
+    }
+
+    return await response.json();
+  } catch (error) {
+    console.error(`Error fetching station with ID ${stationId}:`, error);
+    throw error;
+  }
+};
 
 // Types
 export interface Coordinates {
@@ -19,21 +37,22 @@ export interface Coordinates {
 
 export interface LocationData extends Coordinates {}
 
-export interface Route {
+export interface BusRoute {
   id: number;
   name: string;
   destinationStationId: number;
+  originStationId: number;
 }
 
 export interface Station {
   id: number;
   name: string;
   coordinates: Coordinates;
-  arrivingRoutes: Route[];
+  arrivingRoutes: BusRoute[];
 }
 
 export interface RouteWithDestination {
-  route: Route;
+  route: BusRoute;
   destination: Station;
 }
 
@@ -46,7 +65,7 @@ interface AppContextType {
   
   // Station and routes state
   currentStation: Station | null;
-  availableRoutes: Route[];
+  availableRoutes: BusRoute[];
   routesWithDestinations: RouteWithDestination[];
   stationsLoading: boolean;
   stationsError: string | null;
@@ -85,7 +104,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   
   // Station and routes state
   const [currentStation, setCurrentStation] = useState<Station | null>(null);
-  const [availableRoutes, setAvailableRoutes] = useState<Route[]>([]);
+  const [availableRoutes, setAvailableRoutes] = useState<BusRoute[]>([]);
   const [routesWithDestinations, setRoutesWithDestinations] = useState<RouteWithDestination[]>([]);
   const [stationsLoading, setStationsLoading] = useState(false);
   const [stationsError, setStationsError] = useState<string | null>(null);
@@ -119,33 +138,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, []);
 
   /**
-   * Fetch station by ID
-   */
-  const fetchStationById = async (stationId: number): Promise<Station> => {
-    try {
-      const response = await fetch(`${API_BASE_URL}/stations/${stationId}`);
-      
-      if (!response.ok) {
-        throw new Error(`Error fetching station with ID: ${stationId}`);
-      }
-
-      return await response.json();
-    } catch (error) {
-      console.error(`Error fetching station with ID ${stationId}:`, error);
-      throw error;
-    }
-  };
-
-  /**
    * Fetch destination details for routes
    */
-  const fetchDestinationDetails = async (routes: Route[]) => {
+  const fetchDestinationDetails = async (routes: BusRoute[]) => {
     if (!routes || routes.length === 0) return [];
     
     try {
       const promises = routes
-        .filter((route: Route) => route.destinationStationId > 0)
-        .map(async (route: Route) => {
+        .filter((route: BusRoute) => route.destinationStationId > 0)
+        .map(async (route: BusRoute) => {
           try {
             const destination = await fetchStationById(route.destinationStationId);
             return { route, destination };
@@ -175,8 +176,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       fetchNearestStation();
       
       // Use the current global data
-      const station = globalStationData.station;
-      const routes = globalStationData.arrivingRoutes;
+      const station = globalCurrentStationData.station;
+      const routes = globalCurrentStationData.arrivingRoutes;
       
       if (station) {
         setCurrentStation(station);
@@ -217,12 +218,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
   // Subscribe to station data updates
   useEffect(() => {
     const handleStationUpdate = () => {
-      if (globalStationData.station) {
-        setCurrentStation(globalStationData.station);
-        setAvailableRoutes(globalStationData.arrivingRoutes || []);
+      if (globalCurrentStationData.station) {
+        setCurrentStation(globalCurrentStationData.station);
+        setAvailableRoutes(globalCurrentStationData.arrivingRoutes || []);
         
         // Fetch destination details when station updates
-        fetchDestinationDetails(globalStationData.arrivingRoutes)
+        fetchDestinationDetails(globalCurrentStationData.arrivingRoutes)
           .then(destinations => {
             setRoutesWithDestinations(destinations);
           })
