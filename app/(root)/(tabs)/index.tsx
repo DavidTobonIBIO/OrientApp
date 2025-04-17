@@ -8,6 +8,7 @@ import {
   TouchableOpacity,
   Alert,
   ActivityIndicator,
+  StatusBar,
 } from "react-native";
 import { Audio } from "expo-av";
 import * as FileSystem from "expo-file-system";
@@ -182,6 +183,9 @@ export default function Index() {
 
   return (
     <SafeAreaView className="bg-white h-full">
+      {/* Set status bar to dark content for visibility on white background */}
+      <StatusBar barStyle="dark-content" backgroundColor="white" />
+      
       <ScrollView contentContainerClassName="justify-center items-center py-10">
         <Image source={icons.orientapp} className="w-5/6" resizeMode="contain" />
         <View className="items-center w-5/6">
@@ -224,7 +228,7 @@ export default function Index() {
             <TouchableOpacity
               key={index}
               onPress={button.onPress}
-              className={`p-8 rounded-2xl my-4 w-5/6 ${button.isVoice ? "bg-dark-blue" : "bg-dark-blue"}`}
+              className="p-8 rounded-2xl my-4 w-5/6 bg-dark-blue"
             >
               <Text className="text-white text-center text-3xl font-bold">
                 {button.label}

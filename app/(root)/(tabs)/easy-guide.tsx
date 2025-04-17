@@ -137,7 +137,7 @@ const EasyGuide = () => {
           showsVerticalScrollIndicator={true}
         >
           {!loading && (
-            <View className="px-6">
+            <View className="px-6 mt-10">
               {arrivingRoutes.map((item, index) => (
                 <View
                   key={index}
