@@ -6,18 +6,6 @@ import { fetchGoogleRouteData, extractRouteArrivalTime, calculateTimeToDeparture
 import { BusRoute } from '@/types/models';
 import 'nativewind';
 
-interface DestinationMap {
-  [routeId: number]: string;
-}
-
-interface ArrivalTimeMap {
-  [routeId: number]: {
-    time: string | null;
-    error: string | null;
-    loading: boolean;
-  };
-}
-
 const EasyGuide = () => {
   const { 
     stationName, 
