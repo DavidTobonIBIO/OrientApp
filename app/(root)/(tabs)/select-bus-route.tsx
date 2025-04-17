@@ -6,11 +6,10 @@ import {
   SafeAreaView,
   ScrollView,
 } from "react-native";
-import { router } from "expo-router";
 import { globalLocationData } from "@/tasks/locationTasks";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { BusRoute, Station } from "@/context/AppContext";
-
+import { BusRoute, Station } from "@/types/models";
+import { fetchStationById } from "@/services/api";
 
 const API_BASE_URL = process.env.EXPO_PUBLIC_ORIENTAPP_API_BASE_URL;
 
@@ -51,13 +50,6 @@ export default function SelectBusRoute() {
     }
   };
 
-  const fetchDestinationStationData = async (id: number) => {
-    const requestEndpoint = `${API_BASE_URL}/stations/${id}`;
-    const response = await fetch(requestEndpoint);
-    if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-    return response.json();
-  };
-
   useEffect(() => {
     fetchNearestStationData();
   }, []);
@@ -70,7 +62,7 @@ export default function SelectBusRoute() {
         .filter((route) => route.destinationStationId !== null)
         .map(async (route) => {
           try {
-            const destination = await fetchDestinationStationData(route.destinationStationId);
+            const destination = await fetchStationById(route.destinationStationId);
             return { routeId: `${route.id}-${route.name}`, destination };
           } catch (err) {
             console.warn(`❗ Error fetching destination for route ${route.name}:`, err);
@@ -117,13 +109,13 @@ export default function SelectBusRoute() {
     router.push({
       pathname: "/bus-routes/[id]",
       params: {
-        id: route.id,
+        id: route.id.toString(),
         routeName: route.name,
-        destinationStationLat: destinationStation.coordinates.latitude,
-        destinationStationLng: destinationStation.coordinates.longitude,
+        destinationStationLat: destinationStation.coordinates.latitude.toString(),
+        destinationStationLng: destinationStation.coordinates.longitude.toString(),
         currentStationName: stationName,
-        currentStationLat: stationLat,
-        currentStationLng: stationLng,
+        currentStationLat: stationLat?.toString() || "0",
+        currentStationLng: stationLng?.toString() || "0",
       },
     });
   };

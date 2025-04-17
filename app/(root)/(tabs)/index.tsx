@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef } from "react";
 import {
   Text,
   View,
@@ -9,64 +9,31 @@ import {
   Alert,
   ActivityIndicator,
   StatusBar,
-  Platform,
 } from "react-native";
 import { Audio } from "expo-av";
 import * as FileSystem from "expo-file-system";
 import { router } from "expo-router";
 import icons from "@/constants/icons";
-import { globalLocationData, globalCurrentStationData, addStationDataListener } from "@/tasks/locationTasks";
+import { useStationData } from "@/hooks/useStationData";
+import { fetchStationById, sendAudioToAPI } from "@/services/api";
+import { BusRoute, Station } from "@/types/models";
+import { globalCurrentStationData } from "@/tasks/locationTasks";
 import 'nativewind';
-import { BusRoute, Station, fetchStationById } from "@/context/AppContext";
-
-const API_BASE_URL = process.env.EXPO_PUBLIC_ORIENTAPP_API_BASE_URL;
 
 export default function Index() {
   const [recording, setRecording] = useState<Audio.Recording | null>(null);
   const [isRecording, setIsRecording] = useState(false);
-  const [currentStation, setCurrentStation] = useState<string | null>(null);
-  const [locationAvailable, setLocationAvailable] = useState<boolean>(false);
-  const [stationLoading, setStationLoading] = useState<boolean>(true);
-  const recordingRef = useRef<Audio.Recording | null>(null);
+  const [processingAudio, setProcessingAudio] = useState(false);
   const [detectedRoutes, setDetectedRoutes] = useState<BusRoute[]>([]);
   const [showRouteSelection, setShowRouteSelection] = useState<boolean>(false);
-
-  // Update component state with global station data
-  const updateFromGlobalData = () => {
-    try {
-      const { station } = globalCurrentStationData;
-      const { latitude, longitude } = globalLocationData;
-      
-      // Check if location data is available
-      setLocationAvailable(latitude !== 0 || longitude !== 0);
-      
-      if (station) {
-        setCurrentStation(station.name);
-        setStationLoading(false);
-      } else {
-        setCurrentStation(null);
-        setStationLoading(locationAvailable);
-      }
-    } catch (err) {
-      console.error('Error updating station data:', err);
-      setCurrentStation(null);
-      setStationLoading(false);
-    }
-  };
-
-  // Subscribe to global station data updates
-  useEffect(() => {
-    // Initial update from global data
-    updateFromGlobalData();
-    
-    // Register listener for updates
-    const removeListener = addStationDataListener(updateFromGlobalData);
-    
-    // Cleanup listener on unmount
-    return () => {
-      removeListener();
-    };
-  }, []);
+  const recordingRef = useRef<Audio.Recording | null>(null);
+  
+  const { 
+    stationName: currentStation, 
+    loading: stationLoading, 
+    locationAvailable,
+    currentStation: stationData
+  } = useStationData();
 
   const startRecording = async () => {
     try {
@@ -118,8 +85,8 @@ export default function Index() {
         throw new Error('No recording URI available');
       }
       
-      // Send audio to API
-      await sendAudioToAPI(uri);
+      // Process the audio
+      await processAudioRecording(uri);
       
       // Reset recording state
       recordingRef.current = null;
@@ -134,26 +101,34 @@ export default function Index() {
   // Function to handle route selection
   const handleRouteSelection = async (route: BusRoute) => {
     try {
-      setStationLoading(true);
+      setProcessingAudio(true);
       const destinationStation: Station = await fetchStationById(route.destinationStationId);
+      
+      // Get the current station coordinates
+      const currentCoordinates = stationData?.coordinates || globalCurrentStationData.station?.coordinates;
+      
+      if (!currentCoordinates) {
+        Alert.alert('Error', 'No se pudo determinar la ubicación actual');
+        return;
+      }
       
       router.push({
         pathname: "/bus-routes/[id]",
         params: {
-          id: route.id,
+          id: route.id.toString(),
           routeName: route.name,
-          destinationStationLat: destinationStation.coordinates.latitude,
-          destinationStationLng: destinationStation.coordinates.longitude,
-          currentStationName: globalCurrentStationData.station?.name,
-          currentStationLat: globalCurrentStationData.station?.coordinates.latitude,
-          currentStationLng: globalCurrentStationData.station?.coordinates.longitude,
+          destinationStationLat: destinationStation.coordinates.latitude.toString(),
+          destinationStationLng: destinationStation.coordinates.longitude.toString(),
+          currentStationName: currentStation || "Unknown",
+          currentStationLat: currentCoordinates.latitude.toString(),
+          currentStationLng: currentCoordinates.longitude.toString(),
         },
       });
     } catch (err) {
-      console.error('Error handling route selection:', err);
+      console.log('Error handling route selection:', err);
       Alert.alert('Error', 'No se pudo cargar la información de la ruta.');
     } finally {
-      setStationLoading(false);
+      setProcessingAudio(false);
     }
   };
 
@@ -163,75 +138,47 @@ export default function Index() {
     setDetectedRoutes([]);
   };
 
-  const sendAudioToAPI = async (uri: string) => {
+  const processAudioRecording = async (uri: string) => {
     try {
       // Show loading state
-      setStationLoading(true);
+      setProcessingAudio(true);
       
-      // Check file extension and type
-      const fileExtension = uri.split('.').pop()?.toLowerCase();
-      const mimeType = fileExtension === 'm4a' ? 'audio/m4a' : 'audio/wav';
-      const fileName = `recording.${fileExtension}`;
-      
-      console.log('File type:', mimeType, 'File name:', fileName);
-      
-      // Read the file as base64
+      // Check if file exists
       const fileInfo = await FileSystem.getInfoAsync(uri);
       if (!fileInfo.exists) {
         throw new Error('Recording file not found');
       }
       
-      // Create form data
-      const formData = new FormData();
-      formData.append('audio', {
-        uri: uri,
-        name: fileName,
-        type: mimeType,
-      } as any);
-      
-      // Make API request
-      console.log('Sending request to API...');
-      const response = await fetch(`${API_BASE_URL}/voice/route`, {
-        method: 'POST',
-        body: formData,
-        headers: {
-          'Accept': 'application/json',
-        },
-      }).catch(e => {
-        console.log('Fetch error:', e);
-        throw new Error('Error de conexión: ' + e.message);
-      });
-      
-      console.log('Response status:', response.status);
-      
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.log('API error response:', errorText);
-        throw new Error(`Error en la solicitud: ${response.status}`);
-      }
-      
-      const routes: BusRoute[] = await response.json();
+      // Send audio to backend for processing
+      const routes = await sendAudioToAPI(uri, fileInfo);
       console.log('Routes found:', routes);
       
-      // If routes were found, navigate to route details or show confirmation
-      if (routes) {
+      // Handle route detection results
+      if (routes && routes.length > 0) {
         if (routes.length === 1) {
           // If only one route, navigate directly to route screen
           const route = routes[0];
-          
-          const destinationStation: Station = await fetchStationById(route.destinationStationId);
+          const destinationStation = await fetchStationById(route.destinationStationId);
 
+          // Get the current station coordinates
+          const currentCoordinates = stationData?.coordinates || globalCurrentStationData.station?.coordinates;
+          
+          if (!currentCoordinates) {
+            Alert.alert('Error', 'No se pudo determinar la ubicación actual');
+            return;
+          }
+          
           // Navigate to route details screen with params
           router.push({
             pathname: "/bus-routes/[id]",
             params: {
-              id: route.id,
+              id: route.id.toString(),
               routeName: route.name,
-              destinationStationLat: destinationStation.coordinates.latitude,
-              destinationStationLng: destinationStation.coordinates.longitude,
-              currentStationName: globalCurrentStationData.station?.name,
-              currentStationLat: globalCurrentStationData.station?.coordinates.latitude,
-              currentStationLng: globalCurrentStationData.station?.coordinates.longitude,
+              destinationStationLat: destinationStation.coordinates.latitude.toString(),
+              destinationStationLng: destinationStation.coordinates.longitude.toString(),
+              currentStationName: currentStation || "Unknown",
+              currentStationLat: currentCoordinates.latitude.toString(),
+              currentStationLng: currentCoordinates.longitude.toString(),
             },
           });
         } else {
@@ -244,10 +191,10 @@ export default function Index() {
         Alert.alert('No se encontró la ruta', 'Intente nuevamente pronunciando claramente el número de ruta.');
       }
     } catch (err: any) {
-      console.log('Error sending audio to API:', err);
+      console.log('Error processing audio:', err);
       Alert.alert('No se encontró la ruta', 'Intente nuevamente pronunciando claramente el número de ruta.');
     } finally {
-      setStationLoading(false);
+      setProcessingAudio(false);
     }
   };
   
@@ -303,23 +250,17 @@ export default function Index() {
       <ScrollView contentContainerClassName="justify-center items-center">
         <Image source={icons.orientapp} className="w-5/6" resizeMode="contain" />
         <View className="items-center w-5/6">
-          {/* 
-          <Text className="font-bold text-5xl font-spaceMono text-center mb-8 mt-2">
-            Bienvenido a OrientApp!
-          </Text>
-          */}
-
           {/* Current Station Info */}
           <View className="w-full bg-gray-100 rounded-xl p-5 mb-8">
             {!locationAvailable ? (
               <Text className="text-red-600 text-2xl text-center font-bold">
                 Esperando acceso a ubicación...
               </Text>
-            ) : stationLoading ? (
+            ) : stationLoading || processingAudio ? (
               <View className="items-center">
                 <ActivityIndicator size="large" color="#242E47" />
                 <Text className="text-gray-600 text-xl text-center mt-2">
-                  Buscando estación más cercana...
+                  {processingAudio ? 'Procesando audio...' : 'Buscando estación más cercana...'}
                 </Text>
               </View>
             ) : currentStation ? (

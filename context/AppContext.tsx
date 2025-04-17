@@ -1,5 +1,4 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
-import { Alert } from 'react-native';
 import { 
   globalLocationData, 
   globalCurrentStationData, 
@@ -7,54 +6,16 @@ import {
   addStationDataListener,
   fetchNearestStation
 } from '@/tasks/locationTasks';
+import { fetchStationById as apiFetchStationById } from '@/services/api';
+import { LocationData, BusRoute, Station, RouteWithDestination } from '@/types/models';
 
-// API URL
-const API_BASE_URL = process.env.EXPO_PUBLIC_ORIENTAPP_API_BASE_URL || 'http://localhost:8000/api';
+// Re-export the models for backward compatibility
+export type { Coordinates, LocationData, BusRoute, Station, RouteWithDestination } from '@/types/models';
 
 /**
  * Fetch station by ID
  */
-export const fetchStationById = async (stationId: number): Promise<Station> => {
-  try {
-    const response = await fetch(`${API_BASE_URL}/stations/${stationId}`);
-    
-    if (!response.ok) {
-      throw new Error(`Error fetching station with ID: ${stationId}`);
-    }
-
-    return await response.json();
-  } catch (error) {
-    console.error(`Error fetching station with ID ${stationId}:`, error);
-    throw error;
-  }
-};
-
-// Types
-export interface Coordinates {
-  latitude: number;
-  longitude: number;
-}
-
-export interface LocationData extends Coordinates {}
-
-export interface BusRoute {
-  id: number;
-  name: string;
-  destinationStationId: number;
-  originStationId: number;
-}
-
-export interface Station {
-  id: number;
-  name: string;
-  coordinates: Coordinates;
-  arrivingRoutes: BusRoute[];
-}
-
-export interface RouteWithDestination {
-  route: BusRoute;
-  destination: Station;
-}
+export const fetchStationById = apiFetchStationById;
 
 interface AppContextType {
   // Location state

@@ -1,13 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, ScrollView, SafeAreaView, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { router } from 'expo-router';
-import { BusRoute, Station } from '@/context/AppContext';
-import { globalCurrentStationData, addStationDataListener } from '@/tasks/locationTasks';
+import { useStationData, useRouteArrivalTime } from '@/hooks/useStationData';
+import { fetchGoogleRouteData, extractRouteArrivalTime, calculateTimeToDeparture, fetchStationById } from '@/services/api';
+import { BusRoute } from '@/types/models';
 import 'nativewind';
-
-const API_BASE_URL = process.env.EXPO_PUBLIC_ORIENTAPP_API_BASE_URL || 'http://localhost:8000/api';
-const GOOGLE_MAPS_API_KEY = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY;
-const GOOGLE_MAPS_ROUTES_API_URL = "https://routes.googleapis.com/directions/v2:computeRoutes";
 
 interface DestinationMap {
   [routeId: number]: string;
@@ -22,226 +19,112 @@ interface ArrivalTimeMap {
 }
 
 const EasyGuide = () => {
-  const [arrivingRoutes, setArrivingRoutes] = useState<BusRoute[]>([]);
-  const [destinationNames, setDestinationNames] = useState<DestinationMap>({});
-  const [arrivalTimes, setArrivalTimes] = useState<ArrivalTimeMap>({});
-  const [loading, setLoading] = useState<boolean>(true);
-  const [error, setError] = useState<string | null>(null);
-  const [stationName, setStationName] = useState<string | null>(null);
+  const { 
+    stationName, 
+    arrivingRoutes, 
+    currentStation,
+    loading, 
+    error 
+  } = useStationData();
+  
+  const { arrivalTimes, updateArrivalTime } = useRouteArrivalTime();
+  const [destinationNames, setDestinationNames] = useState<{[routeId: number]: string}>({});
+  const [loadingDestinations, setLoadingDestinations] = useState<{[routeId: number]: boolean}>({});
 
-  // Function to fetch station by ID
-  const fetchStationById = async (stationId: number): Promise<Station> => {
-    const response = await fetch(`${API_BASE_URL}/stations/${stationId}`);
-    if (!response.ok) {
-      throw new Error(`Error fetching station with ID: ${stationId}`);
+  // Function to fetch destination station name
+  const fetchDestinationName = async (route: BusRoute) => {
+    if (!route.destinationStationId) return;
+    
+    try {
+      setLoadingDestinations(prev => ({...prev, [route.id]: true}));
+      
+      const destinationStation = await fetchStationById(route.destinationStationId);
+      setDestinationNames(prev => ({
+        ...prev,
+        [route.id]: destinationStation.name
+      }));
+    } catch (err) {
+      console.log(`Error fetching destination for route ${route.name}:`, err);
+    } finally {
+      setLoadingDestinations(prev => ({...prev, [route.id]: false}));
     }
-    return await response.json();
   };
 
   // Function to fetch Google Maps route data for a specific route
-  const fetchGoogleRouteData = async (route: BusRoute, destinationStation: Station) => {
+  const fetchRouteArrivalTime = async (route: BusRoute, destinationStationId: number) => {
     try {
       // Initialize arrival time state for this route
-      setArrivalTimes(prev => ({
-        ...prev,
-        [route.id]: { time: null, error: null, loading: true }
-      }));
+      updateArrivalTime(route.id, { loading: true });
 
       // Get current station coordinates
-      const currentStation = globalCurrentStationData.station;
       if (!currentStation) {
         throw new Error('Current station not available');
       }
 
+      // Get destination station
+      const destinationStation = await fetchStationById(destinationStationId);
+      
       // Make request to Google Maps Routes API
-      const response = await fetch(GOOGLE_MAPS_ROUTES_API_URL, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-Goog-Api-Key": GOOGLE_MAPS_API_KEY!,
-          "X-Goog-FieldMask": "routes.legs",
-        },
-        body: JSON.stringify({
-          origin: {
-            location: {
-              latLng: {
-                latitude: currentStation.coordinates.latitude,
-                longitude: currentStation.coordinates.longitude
-              }
-            }
-          },
-          destination: {
-            location: {
-              latLng: {
-                latitude: destinationStation.coordinates.latitude,
-                longitude: destinationStation.coordinates.longitude
-              }
-            }
-          },
-          travelMode: "TRANSIT",
-          computeAlternativeRoutes: true
-        })
-      });
-
-      if (!response.ok) {
-        throw new Error(`Google API error: ${response.status}`);
-      }
-
-      const data = await response.json();
+      const data = await fetchGoogleRouteData(
+        currentStation.coordinates.latitude,
+        currentStation.coordinates.longitude,
+        destinationStation.coordinates.latitude,
+        destinationStation.coordinates.longitude
+      );
       
       // Extract arrival time for this route
-      extractRouteArrivalTime(data, route);
+      const departureTime = extractRouteArrivalTime(data, route.name);
+      
+      if (departureTime) {
+        const timeInMinutes = calculateTimeToDeparture(departureTime);
+        updateArrivalTime(route.id, { 
+          time: timeInMinutes.toString(), 
+          loading: false 
+        });
+      } else {
+        throw new Error('No arrival information found');
+      }
     } catch (err: any) {
       console.log(`Error fetching arrival time for route ${route.name}:`, err);
-      setArrivalTimes(prev => ({
-        ...prev,
-        [route.id]: { 
-          time: null, 
-          error: err.message || 'Error al obtener el tiempo de llegada', 
-          loading: false 
-        }
-      }));
+      updateArrivalTime(route.id, { 
+        error: err.message || 'Error al obtener el tiempo de llegada', 
+        loading: false 
+      });
     }
   };
 
-  // Extract arrival time from Google Maps response
-  const extractRouteArrivalTime = (data: any, route: BusRoute) => {
-    try {
-      for (const googleRoute of data.routes || []) {
-        for (const leg of googleRoute.legs || []) {
-          for (const step of leg.steps || []) {
-            if (
-              step.travelMode === "TRANSIT" &&
-              step.transitDetails?.transitLine?.nameShort === route.name
-            ) {
-              const departureTime = step.transitDetails?.localizedValues?.departureTime?.time?.text;
-              if (departureTime) {
-                calculateTimeToDeparture(route.id, departureTime);
-                return;
-              }
-            }
-          }
-        }
-      }
-      throw new Error('No arrival information found');
-    } catch (err: any) {
-      setArrivalTimes(prev => ({
-        ...prev,
-        [route.id]: { 
-          time: null, 
-          error: err.message || 'Información no disponible', 
-          loading: false 
-        }
-      }));
-    }
-  };
-
-  // Calculate time to departure
-  const calculateTimeToDeparture = (routeId: number, departureTime: string) => {
-    try {
-      const now = new Date();
-      const [hours, minutes] = departureTime.split(':').map(Number);
-      const departure = new Date(now.getFullYear(), now.getMonth(), now.getDate(), hours, minutes);
-      
-      // If the calculated time is in the past, it might be for tomorrow
-      if (departure < now) {
-        departure.setDate(departure.getDate() + 1);
-      }
-      
-      const diffMinutes = Math.round((departure.getTime() - now.getTime()) / (1000 * 60));
-      
-      setArrivalTimes(prev => ({
-        ...prev,
-        [routeId]: { 
-          time: diffMinutes.toString(), 
-          error: null, 
-          loading: false 
-        }
-      }));
-    } catch (err) {
-      console.log(`Error calculating time for route ${routeId}:`, err);
-      setArrivalTimes(prev => ({
-        ...prev,
-        [routeId]: { 
-          time: null, 
-          error: 'Error al calcular tiempo', 
-          loading: false 
-        }
-      }));
-    }
-  };
-
-  // Function to fetch destination stations for all routes
-  const fetchDestinationStations = async (routes: BusRoute[]) => {
-    try {
-      const destinations: DestinationMap = {};
-      
-      // Create an array of promises for fetching all destination stations
-      const promises = routes.map(async (route) => {
-        try {
-          if (route.destinationStationId) {
-            const station = await fetchStationById(route.destinationStationId);
-            destinations[route.id] = station.name;
-            
-            // Fetch arrival time for this route
-            fetchGoogleRouteData(route, station);
-          }
-        } catch (err) {
-          console.log(`Failed to fetch destination for route ${route.id}:`, err);
+  // Fetch arrival times and destination names when routes change
+  useEffect(() => {
+    if (arrivingRoutes && arrivingRoutes.length > 0 && currentStation) {
+      arrivingRoutes.forEach(route => {
+        if (route.destinationStationId) {
+          fetchRouteArrivalTime(route, route.destinationStationId);
+          fetchDestinationName(route);
         }
       });
-      
-      // Wait for all requests to complete
-      await Promise.all(promises);
-      
-      // Update state with all destination names
-      setDestinationNames(destinations);
-    } catch (err) {
-      console.log('Error fetching destination stations:', err);
     }
-  };
+  }, [arrivingRoutes, currentStation]);
 
-  // Update component state with global station data
-  const updateFromGlobalData = () => {
-    try {
-      setLoading(true);
-      setError(null);
-      
-      const { station, arrivingRoutes: routes } = globalCurrentStationData;
-      
-      if (station) {
-        setStationName(station.name);
-        setArrivingRoutes(routes);
-        
-        // Fetch destination station names for all routes
-        if (routes && routes.length > 0) {
-          fetchDestinationStations(routes);
-        }
-        
-        setError(null);
-      } else {
-        setError('No se encontró ninguna estación cercana');
-      }
-    } catch (err: any) {
-      setError(err.message || 'Algo salió mal');
-    } finally {
-      setLoading(false);
+  // Render destination station name
+  const renderDestination = (routeId: number) => {
+    const destinationName = destinationNames[routeId];
+    const isLoading = loadingDestinations[routeId];
+    
+    if (isLoading) {
+      return (
+        <View className="flex-row items-center">
+          <ActivityIndicator size="small" color="#4B5563" />
+          <Text className="text-green-700 ml-2">Cargando destino...</Text>
+        </View>
+      );
     }
+    
+    if (!destinationName) {
+      return <Text className="text-green-700">Desconocido</Text>;
+    }
+    
+    return <Text className="text-green-700">{destinationName}</Text>;
   };
-
-  // Subscribe to global station data updates
-  useEffect(() => {
-    // Initial update from global data
-    updateFromGlobalData();
-    
-    // Register listener for updates
-    const removeListener = addStationDataListener(updateFromGlobalData);
-    
-    // Cleanup listener on unmount
-    return () => {
-      removeListener();
-    };
-  }, []);
 
   // Render arrival time information
   const renderArrivalTime = (routeId: number) => {
@@ -322,7 +205,7 @@ const EasyGuide = () => {
                     Ruta: <Text className="text-blue-700">{item.name}</Text>
                   </Text>
                   <Text className="text-3xl text-gray-800">
-                    Destino: <Text className="text-green-700">{destinationNames[item.id] || 'Cargando...'}</Text>
+                    Destino: {renderDestination(item.id)}
                   </Text>
                   {renderArrivalTime(item.id)}
                 </View>

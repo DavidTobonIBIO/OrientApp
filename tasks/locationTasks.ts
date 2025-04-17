@@ -1,20 +1,6 @@
 import * as Location from 'expo-location';
-import { Platform } from 'react-native';
-import { Station, BusRoute } from '@/context/AppContext';
-
-const API_BASE_URL = process.env.EXPO_PUBLIC_ORIENTAPP_API_BASE_URL || 'http://localhost:8000/api';
-
-// Global state to store location and station data
-export interface LocationData {
-  latitude: number;
-  longitude: number;
-}
-
-export interface StationData {
-  station: Station | null;
-  arrivingRoutes: BusRoute[];
-  lastUpdated: Date | null;
-}
+import { LocationData, StationData } from '@/types/models';
+import { fetchNearestStation as apiFetchNearestStation } from '@/services/api';
 
 // Global state for other components to access
 export const globalLocationData: LocationData = {
@@ -31,6 +17,9 @@ export const globalCurrentStationData: StationData = {
 let locationSubscription: Location.LocationSubscription | null = null;
 let stationFetchInterval: NodeJS.Timeout | null = null;
 let isInitialized = false;
+
+// Re-export LocationData and StationData interfaces for backward compatibility
+export type { LocationData, StationData } from '@/types/models';
 
 /**
  * Request location permissions
@@ -122,26 +111,14 @@ export const fetchNearestStation = async (): Promise<void> => {
       return;
     }
 
-    const response = await fetch(`${API_BASE_URL}/stations/nearest_station`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ latitude, longitude }),
-    });
-
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-
-    const station: Station = await response.json();
+    const station = await apiFetchNearestStation(latitude, longitude);
     
     // Update global state
     globalCurrentStationData.station = station;
     globalCurrentStationData.arrivingRoutes = station.arrivingRoutes || [];
     globalCurrentStationData.lastUpdated = new Date();
     
-    // Notify any registered listeners (if we implement that later)
+    // Notify any registered listeners
     notifyListeners();
     
   } catch (error) {
